@@ -1,3 +1,4 @@
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -100,4 +101,54 @@
   body {
     @apply bg-background text-foreground;
   }
+}
+
+/* Custom styles for lesson content */
+.lesson-content h2 {
+  @apply text-2xl font-bold text-gray-800 mt-8 mb-4 pb-2 border-b border-blue-200;
+}
+
+.lesson-content h3 {
+  @apply text-xl font-semibold text-gray-700 mt-6 mb-3;
+}
+
+.lesson-content p {
+  @apply text-gray-600 leading-relaxed mb-4;
+}
+
+.lesson-content ul {
+  @apply list-disc list-inside text-gray-600 mb-4 space-y-1;
+}
+
+.lesson-content li {
+  @apply ml-4;
+}
+
+.lesson-content pre {
+  @apply bg-gray-800 text-green-400 p-4 rounded-lg my-4 overflow-x-auto;
+}
+
+.lesson-content code {
+  @apply bg-gray-100 text-red-600 px-2 py-1 rounded text-sm font-mono;
+}
+
+.lesson-content pre code {
+  @apply bg-transparent text-green-400 p-0;
+}
+
+.lesson-content strong {
+  @apply font-semibold text-gray-800;
+}
+
+/* Custom scrollbar */
+.overflow-y-auto::-webkit-scrollbar {
+  width: 8px;
+}
+
+.overflow-y-auto::-webkit-scrollbar-track {
+  @apply bg-gray-100 rounded-full;
+}
+
+.overflow-y-auto::-webkit-scrollbar-thumb {
+  @apply bg-gray-300 rounded-full hover:bg-gray-400;
 }
