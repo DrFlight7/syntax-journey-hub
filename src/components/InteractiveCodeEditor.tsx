@@ -1,9 +1,9 @@
-
 import { useState, useRef } from 'react';
 import Editor from '@monaco-editor/react';
 import { Play, Square, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import AICodingAssistant from './AICodingAssistant';
 
 interface InteractiveCodeEditorProps {
   initialCode: string;
@@ -62,7 +62,7 @@ const InteractiveCodeEditor = ({ initialCode }: InteractiveCodeEditorProps) => {
   };
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full relative">
       {/* Editor Header */}
       <div className="flex items-center justify-between mb-4 p-4 bg-gray-800 rounded-lg border border-gray-700">
         <h2 className="text-xl font-semibold text-white">Code Editor</h2>
@@ -136,6 +136,9 @@ const InteractiveCodeEditor = ({ initialCode }: InteractiveCodeEditorProps) => {
           {output || 'Click "Run Code" to see output here...'}
         </div>
       </div>
+
+      {/* AI Coding Assistant */}
+      <AICodingAssistant currentCode={code} language={language} />
     </div>
   );
 };
