@@ -1,6 +1,11 @@
 
+import { useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '@/contexts/AuthContext';
 import LessonContent from "../components/LessonContent";
 import InteractiveCodeEditor from "../components/InteractiveCodeEditor";
+import UserProfile from "../components/UserProfile";
+import { Button } from "@/components/ui/button";
 
 const lesson = {
   title: "Introduction to Python Variables",
@@ -45,17 +50,50 @@ print("My favorite color is", favorite_color)
 };
 
 const Index = () => {
+  const { user, loading } = useAuth();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!loading && !user) {
+      navigate('/auth');
+    }
+  }, [user, loading, navigate]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return null; // Will redirect to auth page
+  }
+
   return (
     <div className="flex flex-col min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
       {/* Header */}
       <header className="w-full bg-white shadow-lg border-b border-blue-100">
-        <div className="max-w-7xl mx-auto p-6 text-center">
-          <h1 className="text-4xl md:text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-600 mb-2">
-            Interactive Coding Platform
-          </h1>
-          <p className="text-lg text-gray-600 font-medium">
-            Learn to code interactively with real-time feedback!
-          </p>
+        <div className="max-w-7xl mx-auto p-6">
+          <div className="flex justify-between items-center mb-2">
+            <div className="text-center flex-1">
+              <h1 className="text-4xl md:text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-600">
+                Interactive Coding Platform
+              </h1>
+            </div>
+            <div className="flex items-center">
+              <UserProfile />
+            </div>
+          </div>
+          <div className="text-center">
+            <p className="text-lg text-gray-600 font-medium">
+              Learn to code interactively with real-time feedback!
+            </p>
+          </div>
         </div>
       </header>
 
