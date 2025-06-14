@@ -5,6 +5,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import LessonContent from "../components/LessonContent";
 import InteractiveCodeEditor from "../components/InteractiveCodeEditor";
 import UserProfile from "../components/UserProfile";
+import SubscriptionBanner from "../components/SubscriptionBanner";
 import { Button } from "@/components/ui/button";
 
 const lesson = {
@@ -99,16 +100,21 @@ const Index = () => {
 
       {/* Main Content */}
       <main className="flex-grow flex justify-center items-start p-4 md:p-6">
-        <div className="flex flex-col lg:flex-row w-full max-w-7xl bg-white rounded-2xl shadow-2xl overflow-hidden border border-gray-200">
-          {/* Lesson Content Section */}
-          <section className="w-full lg:w-1/2 p-6 md:p-8 overflow-y-auto max-h-[80vh] border-r border-gray-200 bg-gradient-to-b from-white to-gray-50">
-            <LessonContent title={lesson.title} content={lesson.content} />
-          </section>
+        <div className="w-full max-w-7xl">
+          {/* Subscription Banner */}
+          <SubscriptionBanner />
+          
+          <div className="flex flex-col lg:flex-row bg-white rounded-2xl shadow-2xl overflow-hidden border border-gray-200">
+            {/* Lesson Content Section */}
+            <section className="w-full lg:w-1/2 p-6 md:p-8 overflow-y-auto max-h-[80vh] border-r border-gray-200 bg-gradient-to-b from-white to-gray-50">
+              <LessonContent title={lesson.title} content={lesson.content} />
+            </section>
 
-          {/* Interactive Code Editor Section */}
-          <section className="w-full lg:w-1/2 p-6 md:p-8 bg-gray-900 flex flex-col">
-            <InteractiveCodeEditor initialCode={lesson.initialCode} />
-          </section>
+            {/* Interactive Code Editor Section */}
+            <section className="w-full lg:w-1/2 p-6 md:p-8 bg-gray-900 flex flex-col">
+              <InteractiveCodeEditor initialCode={lesson.initialCode} />
+            </section>
+          </div>
         </div>
       </main>
 
