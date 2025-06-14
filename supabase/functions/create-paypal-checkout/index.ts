@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 
 const corsHeaders = {
@@ -7,7 +6,7 @@ const corsHeaders = {
 };
 
 // Helper: Get PayPal access token
-async function getPayPalAccessToken(clientId: string, clientSecret: string): Promise&lt;string&gt; {
+async function getPayPalAccessToken(clientId: string, clientSecret: string): Promise<string> {
   const credentials = btoa(`${clientId}:${clientSecret}`);
   const response = await fetch("https://api-m.sandbox.paypal.com/v1/oauth2/token", {
     method: "POST",
@@ -71,7 +70,7 @@ serve(async (req) => {
     );
 
     // Find approve link
-    const approveUrl = (subscription.links || []).find((l: any) =&gt; l.rel === "approve")?.href;
+    const approveUrl = (subscription.links || []).find((l: any) => l.rel === "approve")?.href;
     if (!approveUrl) throw new Error("No approval link returned by PayPal.");
 
     return new Response(JSON.stringify({ url: approveUrl }), {
