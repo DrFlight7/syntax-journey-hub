@@ -2,7 +2,7 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
-const deepSeekApiKey = Deno.env.get('DEEPSEEK_API_KEY');
+const googleAiApiKey = Deno.env.get('GOOGLE_AI_API_KEY');
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -19,13 +19,13 @@ serve(async (req) => {
     const { code, question, language } = await req.json();
 
     // Check if API key exists and log its presence (not the actual key)
-    console.log('DeepSeek API key present:', !!deepSeekApiKey);
-    console.log('API key length:', deepSeekApiKey?.length || 0);
+    console.log('Google AI API key present:', !!googleAiApiKey);
+    console.log('API key length:', googleAiApiKey?.length || 0);
     
-    if (!deepSeekApiKey) {
-      console.error('DeepSeek API key not found in environment');
+    if (!googleAiApiKey) {
+      console.error('Google AI API key not found in environment');
       return new Response(JSON.stringify({ 
-        error: 'DeepSeek API key is not configured. Please add your API key in the Supabase secrets.' 
+        error: 'Google AI API key is not configured. Please add your API key in the Supabase secrets.' 
       }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -34,11 +34,11 @@ serve(async (req) => {
 
     console.log('AI Assistant request:', { question, language, codeLength: code?.length });
 
-    // Validate API key format (DeepSeek keys start with "sk-")
-    if (!deepSeekApiKey.startsWith('sk-')) {
-      console.error('Invalid DeepSeek API key format');
+    // Validate API key format (Google AI keys start with "AIza")
+    if (!googleAiApiKey.startsWith('AIza')) {
+      console.error('Invalid Google AI API key format');
       return new Response(JSON.stringify({ 
-        error: 'Invalid DeepSeek API key format. Please check your API key.' 
+        error: 'Invalid Google AI API key format. Please check your API key.' 
       }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -67,38 +67,61 @@ ${code}
 Question: ${question}`;
     }
 
-    console.log('Making request to DeepSeek API...');
+    console.log('Making request to Google AI API...');
 
-    const response = await fetch('https://api.deepseek.com/chat/completions', {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${googleAiApiKey}`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${deepSeekApiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'deepseek-chat',
-        messages: [
-          { role: 'system', content: systemMessage },
-          { role: 'user', content: userMessage }
+        contents: [
+          {
+            parts: [
+              { text: `${systemMessage}\n\nUser: ${userMessage}` }
+            ]
+          }
         ],
-        temperature: 0.7,
-        max_tokens: 1000,
+        generationConfig: {
+          temperature: 0.7,
+          topK: 1,
+          topP: 1,
+          maxOutputTokens: 1000,
+        },
+        safetySettings: [
+          {
+            category: "HARM_CATEGORY_HARASSMENT",
+            threshold: "BLOCK_MEDIUM_AND_ABOVE"
+          },
+          {
+            category: "HARM_CATEGORY_HATE_SPEECH",
+            threshold: "BLOCK_MEDIUM_AND_ABOVE"
+          },
+          {
+            category: "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+            threshold: "BLOCK_MEDIUM_AND_ABOVE"
+          },
+          {
+            category: "HARM_CATEGORY_DANGEROUS_CONTENT",
+            threshold: "BLOCK_MEDIUM_AND_ABOVE"
+          }
+        ]
       }),
     });
 
-    console.log('DeepSeek API response status:', response.status);
+    console.log('Google AI API response status:', response.status);
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('DeepSeek API error details:', errorText);
+      console.error('Google AI API error details:', errorText);
       
-      let errorMessage = 'An error occurred while calling DeepSeek API';
-      if (response.status === 401) {
-        errorMessage = 'Invalid DeepSeek API key. Please check your API key in the Supabase secrets.';
+      let errorMessage = 'An error occurred while calling Google AI API';
+      if (response.status === 401 || response.status === 403) {
+        errorMessage = 'Invalid Google AI API key. Please check your API key in the Supabase secrets.';
       } else if (response.status === 429) {
-        errorMessage = 'DeepSeek API rate limit exceeded. Please try again later.';
+        errorMessage = 'Google AI API rate limit exceeded. Please try again later.';
       } else if (response.status === 400) {
-        errorMessage = 'Invalid request to DeepSeek API. Please try a different question.';
+        errorMessage = 'Invalid request to Google AI API. Please try a different question.';
       }
       
       return new Response(JSON.stringify({ error: errorMessage }), {
@@ -109,17 +132,17 @@ Question: ${question}`;
 
     const data = await response.json();
     
-    if (!data.choices || !data.choices[0] || !data.choices[0].message) {
-      console.error('Unexpected DeepSeek response structure:', data);
+    if (!data.candidates || !data.candidates[0] || !data.candidates[0].content || !data.candidates[0].content.parts) {
+      console.error('Unexpected Google AI response structure:', data);
       return new Response(JSON.stringify({ 
-        error: 'Invalid response from DeepSeek API' 
+        error: 'Invalid response from Google AI API' 
       }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    const aiResponse = data.choices[0].message.content;
+    const aiResponse = data.candidates[0].content.parts[0].text;
 
     console.log('AI Assistant response generated successfully');
 
