@@ -1,9 +1,8 @@
-
 import React, { useState } from 'react';
 import { useSubscription } from '@/hooks/useSubscription';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Crown, CreditCard, Paypal } from 'lucide-react';
+import { Crown, CreditCard, Wallet } from 'lucide-react';
 
 const SubscriptionBanner = () => {
   const {
@@ -76,7 +75,7 @@ const SubscriptionBanner = () => {
             onClick={() => setSelectedProvider('paypal')}
             disabled={loading}
           >
-            <Paypal className="w-4 h-4 mr-2" />
+            <Wallet className="w-4 h-4 mr-2" />
             Pay with PayPal
           </Button>
         </div>
