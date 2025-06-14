@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -21,7 +20,10 @@ export const useSubscription = () => {
   const { toast } = useToast();
 
   const checkSubscription = async () => {
-    if (!user) return;
+    if (!user) {
+      setLoading(false);
+      return;
+    }
     
     setLoading(true);
     try {
@@ -122,10 +124,10 @@ export const useSubscription = () => {
   };
 
   useEffect(() => {
+    // Only check subscription if user exists, otherwise keep loading false
     if (user) {
       checkSubscription();
     } else {
-      // Reset loading state when user is not authenticated
       setLoading(false);
     }
   }, [user]);
