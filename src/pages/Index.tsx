@@ -1,4 +1,3 @@
-
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
@@ -51,14 +50,70 @@ print("My favorite color is", favorite_color)
 };
 
 const Index = () => {
-  const { user, loading } = useAuth();
+  const { user, loading, signOut } = useAuth();
   const navigate = useNavigate();
+
+  // Add stuck loading timer
+  const [loadingStuck, setLoadingStuck] = useState(false);
+  const stuckTimer = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    if (loading && !stuckTimer.current) {
+      stuckTimer.current = setTimeout(() => setLoadingStuck(true), 8000);
+    }
+    if (!loading && stuckTimer.current) {
+      clearTimeout(stuckTimer.current);
+      stuckTimer.current = null;
+      setLoadingStuck(false);
+    }
+    return () => {
+      if (stuckTimer.current) clearTimeout(stuckTimer.current);
+    };
+  }, [loading]);
 
   useEffect(() => {
     if (!loading && !user) {
       navigate('/auth');
     }
   }, [user, loading, navigate]);
+
+  if (loading && loadingStuck) {
+    // Show stuck loading fallback UI
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
+        <div className="text-center bg-white rounded shadow-lg p-8">
+          <p className="text-lg text-red-800 mb-4 font-bold">
+            Oops! The app is stuck loading.
+          </p>
+          <p className="text-gray-700 mb-4">
+            Something went wrong while loading your authentication.<br />
+            You may need to force a clean logout, or reload the page.
+          </p>
+          <button
+            className="bg-red-600 text-white px-4 py-2 rounded font-bold hover:bg-red-700 mr-4"
+            onClick={() => {
+              // Defensive forced logout
+              try {
+                if (signOut) { signOut(); }
+              } catch (_) {
+                localStorage.clear();
+                sessionStorage.clear();
+                window.location.href = '/auth';
+              }
+            }}
+          >
+            Force Log Out
+          </button>
+          <button
+            className="bg-gray-200 text-gray-800 font-bold py-2 px-4 rounded"
+            onClick={() => window.location.reload()}
+          >
+            Reload Page
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (
