@@ -40,13 +40,25 @@ export const useSubscription = () => {
       setSubscriptionData(data);
     } catch (error) {
       console.error('Error checking subscription:', error);
+      toast({
+        title: "Error",
+        description: "Failed to check subscription status",
+        variant: "destructive",
+      });
     } finally {
       setLoading(false);
     }
   };
 
   const createCheckoutSession = async () => {
-    if (!user) return;
+    if (!user) {
+      toast({
+        title: "Authentication Required",
+        description: "Please log in to subscribe",
+        variant: "destructive",
+      });
+      return;
+    }
     
     setLoading(true);
     try {
@@ -67,6 +79,11 @@ export const useSubscription = () => {
       }
     } catch (error) {
       console.error('Error creating checkout session:', error);
+      toast({
+        title: "Error",
+        description: "Failed to create checkout session",
+        variant: "destructive",
+      });
     } finally {
       setLoading(false);
     }
@@ -94,6 +111,11 @@ export const useSubscription = () => {
       }
     } catch (error) {
       console.error('Error opening customer portal:', error);
+      toast({
+        title: "Error",
+        description: "Failed to open customer portal",
+        variant: "destructive",
+      });
     } finally {
       setLoading(false);
     }
@@ -102,6 +124,9 @@ export const useSubscription = () => {
   useEffect(() => {
     if (user) {
       checkSubscription();
+    } else {
+      // Reset loading state when user is not authenticated
+      setLoading(false);
     }
   }, [user]);
 
