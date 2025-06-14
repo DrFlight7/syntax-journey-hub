@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -94,6 +95,42 @@ export const useSubscription = () => {
     }
   };
 
+  // NEW: PayPal (stub implementation for now)
+  const createPaypalCheckoutSession = async () => {
+    toast({
+      title: "PayPal Integration Coming Soon",
+      description: "PayPal support is launching soon. If you'd like to pay with PayPal, please contact us for early access.",
+      variant: "default",
+    });
+    // Uncomment and implement in Phase 3:
+    // setLoading(true);
+    // try {
+    //   console.log('[useSubscription] Creating PayPal checkout session...');
+    //   const { data, error } = await supabase.functions.invoke('create-paypal-checkout');
+    //   if (error) {
+    //     toast({
+    //       title: "Error",
+    //       description: "Failed to create PayPal checkout session",
+    //       variant: "destructive",
+    //     });
+    //     setLoading(false);
+    //     return;
+    //   }
+    //   if (data?.url) {
+    //     window.open(data.url, '_blank');
+    //   }
+    // } catch (error) {
+    //   toast({
+    //     title: "Error",
+    //     description: "Failed to create PayPal checkout session",
+    //     variant: "destructive",
+    //   });
+    //   setLoading(false);
+    // } finally {
+    //   setLoading(false);
+    // }
+  };
+
   const openCustomerPortal = async () => {
     if (!user) {
       setLoading(false);
@@ -150,6 +187,7 @@ export const useSubscription = () => {
     loading,
     checkSubscription,
     createCheckoutSession,
+    createPaypalCheckoutSession,
     openCustomerPortal,
   };
 };

@@ -1,12 +1,22 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { useSubscription } from '@/hooks/useSubscription';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Crown, CreditCard } from 'lucide-react';
+import { Crown, CreditCard, Paypal } from 'lucide-react';
 
 const SubscriptionBanner = () => {
-  const { subscribed, subscription_tier, subscription_end, loading, createCheckoutSession, openCustomerPortal } = useSubscription();
+  const {
+    subscribed,
+    subscription_tier,
+    subscription_end,
+    loading,
+    createCheckoutSession,
+    createPaypalCheckoutSession,
+    openCustomerPortal,
+  } = useSubscription();
+
+  const [selectedProvider, setSelectedProvider] = useState<'stripe' | 'paypal'>('stripe');
 
   if (subscribed) {
     return (
@@ -46,17 +56,53 @@ const SubscriptionBanner = () => {
         <CardTitle className="text-blue-800">Unlock Premium Features</CardTitle>
         <CardDescription className="text-blue-700">
           Subscribe for ₱299/month to access all coding lessons and premium features. 
-          Supports GCash payments!
+          <span className="block mt-1">Choose your preferred payment method:</span>
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <Button 
-          onClick={createCheckoutSession}
+        <div className="flex flex-col md:flex-row gap-4 mb-4">
+          <Button
+            variant={selectedProvider === 'stripe' ? "default" : "outline"}
+            className={`flex-1 ${selectedProvider === 'stripe' ? "bg-blue-600 hover:bg-blue-700" : ""}`}
+            onClick={() => setSelectedProvider('stripe')}
+            disabled={loading}
+          >
+            <CreditCard className="w-4 h-4 mr-2" />
+            Pay with Card (Stripe)
+          </Button>
+          <Button
+            variant={selectedProvider === 'paypal' ? "default" : "outline"}
+            className={`flex-1 ${selectedProvider === 'paypal' ? "bg-yellow-400 hover:bg-yellow-500 text-black" : ""}`}
+            onClick={() => setSelectedProvider('paypal')}
+            disabled={loading}
+          >
+            <Paypal className="w-4 h-4 mr-2" />
+            Pay with PayPal
+          </Button>
+        </div>
+        <Button
+          onClick={
+            selectedProvider === 'stripe'
+              ? createCheckoutSession
+              : createPaypalCheckoutSession
+          }
           disabled={loading}
-          className="bg-blue-600 hover:bg-blue-700"
+          className={
+            selectedProvider === 'paypal'
+              ? 'bg-yellow-400 hover:bg-yellow-500 text-black w-full'
+              : 'bg-blue-600 hover:bg-blue-700 w-full'
+          }
         >
-          {loading ? "Loading..." : "Subscribe Now - ₱299/month"}
+          {loading
+            ? "Loading..."
+            : selectedProvider === 'paypal'
+              ? "Subscribe with PayPal"
+              : "Subscribe Now - ₱299/month"}
         </Button>
+        <div className="text-xs mt-4 text-gray-500">
+          <span className="font-semibold">PayPal works with individual accounts—no business name required!</span><br />
+          Card payments via Stripe support Visa/Mastercard/GCash Card. More options coming soon.
+        </div>
       </CardContent>
     </Card>
   );
