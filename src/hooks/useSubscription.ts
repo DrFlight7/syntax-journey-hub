@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -95,40 +94,53 @@ export const useSubscription = () => {
     }
   };
 
-  // NEW: PayPal (stub implementation for now)
+  // REAL: PayPal integration
   const createPaypalCheckoutSession = async () => {
-    toast({
-      title: "PayPal Integration Coming Soon",
-      description: "PayPal support is launching soon. If you'd like to pay with PayPal, please contact us for early access.",
-      variant: "default",
-    });
-    // Uncomment and implement in Phase 3:
-    // setLoading(true);
-    // try {
-    //   console.log('[useSubscription] Creating PayPal checkout session...');
-    //   const { data, error } = await supabase.functions.invoke('create-paypal-checkout');
-    //   if (error) {
-    //     toast({
-    //       title: "Error",
-    //       description: "Failed to create PayPal checkout session",
-    //       variant: "destructive",
-    //     });
-    //     setLoading(false);
-    //     return;
-    //   }
-    //   if (data?.url) {
-    //     window.open(data.url, '_blank');
-    //   }
-    // } catch (error) {
-    //   toast({
-    //     title: "Error",
-    //     description: "Failed to create PayPal checkout session",
-    //     variant: "destructive",
-    //   });
-    //   setLoading(false);
-    // } finally {
-    //   setLoading(false);
-    // }
+    if (!user) {
+      toast({
+        title: "Authentication Required",
+        description: "Please log in to subscribe with PayPal.",
+        variant: "destructive",
+      });
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    try {
+      // NOTE: You should replace the below PayPal PLAN_ID with your live/sandbox plan (created at developer.paypal.com)
+      const PAYPAL_PLAN_ID = "P-TEST-PREMIUM-PLANID"; // <-- Replace this with your actual Plan ID
+
+      const { data, error } = await supabase.functions.invoke('create-paypal-checkout', {
+        body: { plan_id: PAYPAL_PLAN_ID },
+      });
+
+      if (error) {
+        toast({
+          title: "PayPal Error",
+          description: error.message || "Failed to launch PayPal checkout.",
+          variant: "destructive",
+        });
+        setLoading(false);
+        return;
+      }
+      if (data?.url) {
+        window.location.href = data.url; // Replace window.open() with redirect for better UX
+      } else {
+        toast({
+          title: "PayPal Error",
+          description: "No approval link returned. Please contact support.",
+          variant: "destructive",
+        });
+      }
+    } catch (err: any) {
+      toast({
+        title: "PayPal Integration Error",
+        description: err.message,
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   const openCustomerPortal = async () => {
