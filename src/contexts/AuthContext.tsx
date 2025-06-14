@@ -1,7 +1,7 @@
-
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
+import { cleanupAuthState } from './cleanupAuthState';
 
 interface AuthContextType {
   user: User | null;
@@ -82,7 +82,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signOut = async () => {
     try {
-      await supabase.auth.signOut();
+      // Clean up local storage and session state first
+      cleanupAuthState();
+
+      // Attempt Supabase global sign out (ignore errors if any)
+      try {
+        await supabase.auth.signOut({ scope: 'global' });
+      } catch (err) {
+        // Ignore any error
+      }
+      // Clean up again just in case
+      cleanupAuthState();
+
+      // Force full reload to clear memory state
       window.location.href = '/auth';
     } catch (error) {
       console.error('Error signing out:', error);

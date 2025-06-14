@@ -24,29 +24,30 @@ export const useSubscription = () => {
       setLoading(false);
       return;
     }
-    
+
     setLoading(true);
     try {
+      console.log('[useSubscription] Checking subscription...');
       const { data, error } = await supabase.functions.invoke('check-subscription');
-      
       if (error) {
-        console.error('Error checking subscription:', error);
+        console.error('[useSubscription] Error checking subscription:', error);
         toast({
           title: "Error",
           description: "Failed to check subscription status",
           variant: "destructive",
         });
+        setLoading(false); // ensure loading is reset
         return;
       }
-
       setSubscriptionData(data);
     } catch (error) {
-      console.error('Error checking subscription:', error);
+      console.error('[useSubscription] Exception checking subscription:', error);
       toast({
         title: "Error",
         description: "Failed to check subscription status",
         variant: "destructive",
       });
+      setLoading(false);
     } finally {
       setLoading(false);
     }
@@ -59,77 +60,89 @@ export const useSubscription = () => {
         description: "Please log in to subscribe",
         variant: "destructive",
       });
+      setLoading(false);
       return;
     }
-    
+
     setLoading(true);
     try {
+      console.log('[useSubscription] Creating checkout session...');
       const { data, error } = await supabase.functions.invoke('create-checkout');
-      
       if (error) {
-        console.error('Error creating checkout session:', error);
+        console.error('[useSubscription] Error creating checkout session:', error);
         toast({
           title: "Error",
           description: "Failed to create checkout session",
           variant: "destructive",
         });
+        setLoading(false);
         return;
       }
-
       if (data?.url) {
         window.open(data.url, '_blank');
       }
     } catch (error) {
-      console.error('Error creating checkout session:', error);
+      console.error('[useSubscription] Exception creating checkout session:', error);
       toast({
         title: "Error",
         description: "Failed to create checkout session",
         variant: "destructive",
       });
+      setLoading(false);
     } finally {
       setLoading(false);
     }
   };
 
   const openCustomerPortal = async () => {
-    if (!user) return;
-    
+    if (!user) {
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     try {
+      console.log('[useSubscription] Opening customer portal...');
       const { data, error } = await supabase.functions.invoke('customer-portal');
-      
       if (error) {
-        console.error('Error opening customer portal:', error);
+        console.error('[useSubscription] Error opening customer portal:', error);
         toast({
           title: "Error",
           description: "Failed to open customer portal",
           variant: "destructive",
         });
+        setLoading(false);
         return;
       }
-
       if (data?.url) {
         window.open(data.url, '_blank');
       }
     } catch (error) {
-      console.error('Error opening customer portal:', error);
+      console.error('[useSubscription] Exception opening customer portal:', error);
       toast({
         title: "Error",
         description: "Failed to open customer portal",
         variant: "destructive",
       });
+      setLoading(false);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    // Only check subscription if user exists, otherwise keep loading false
-    if (user) {
-      checkSubscription();
-    } else {
+    // Defensive: if user changes from active to null, always reset loading
+    if (!user) {
       setLoading(false);
+      setSubscriptionData({
+        subscribed: false,
+        subscription_tier: null,
+        subscription_end: null,
+      });
+      return;
     }
+    checkSubscription();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
   return {
