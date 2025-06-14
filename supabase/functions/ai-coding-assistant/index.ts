@@ -19,6 +19,7 @@ serve(async (req) => {
     const { code, question, language } = await req.json();
 
     if (!openAIApiKey) {
+      console.error('OpenAI API key not found in environment');
       throw new Error('OpenAI API key not configured');
     }
 
@@ -46,6 +47,8 @@ ${code}
 Question: ${question}`;
     }
 
+    console.log('Making request to OpenAI API...');
+
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -63,11 +66,21 @@ Question: ${question}`;
       }),
     });
 
+    console.log('OpenAI API response status:', response.status);
+
     if (!response.ok) {
-      throw new Error(`OpenAI API error: ${response.status}`);
+      const errorText = await response.text();
+      console.error('OpenAI API error details:', errorText);
+      throw new Error(`OpenAI API error: ${response.status} - ${errorText}`);
     }
 
     const data = await response.json();
+    
+    if (!data.choices || !data.choices[0] || !data.choices[0].message) {
+      console.error('Unexpected OpenAI response structure:', data);
+      throw new Error('Invalid response from OpenAI API');
+    }
+
     const aiResponse = data.choices[0].message.content;
 
     console.log('AI Assistant response generated successfully');
@@ -77,7 +90,19 @@ Question: ${question}`;
     });
   } catch (error) {
     console.error('Error in AI coding assistant:', error);
-    return new Response(JSON.stringify({ error: error.message }), {
+    
+    let errorMessage = 'An unexpected error occurred';
+    if (error.message.includes('OpenAI API key not configured')) {
+      errorMessage = 'OpenAI API key is not configured. Please add your API key in the Supabase secrets.';
+    } else if (error.message.includes('401')) {
+      errorMessage = 'Invalid OpenAI API key. Please check your API key in the Supabase secrets.';
+    } else if (error.message.includes('429')) {
+      errorMessage = 'OpenAI API rate limit exceeded. Please try again later.';
+    } else if (error.message.includes('OpenAI API error')) {
+      errorMessage = error.message;
+    }
+
+    return new Response(JSON.stringify({ error: errorMessage }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

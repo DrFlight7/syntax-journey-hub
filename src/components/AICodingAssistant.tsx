@@ -1,6 +1,6 @@
 
 import { useState } from 'react';
-import { Bot, Send, Loader2, MessageCircle, X } from 'lucide-react';
+import { Bot, Send, Loader2, MessageCircle, X, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { supabase } from '@/integrations/supabase/client';
@@ -16,6 +16,7 @@ const AICodingAssistant = ({ currentCode, language }: AICodingAssistantProps) =>
   const [question, setQuestion] = useState('');
   const [response, setResponse] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
 
   const quickQuestions = [
@@ -30,8 +31,13 @@ const AICodingAssistant = ({ currentCode, language }: AICodingAssistantProps) =>
     if (!questionText.trim()) return;
 
     setIsLoading(true);
+    setError(null);
+    setResponse('');
+
     try {
-      const { data, error } = await supabase.functions.invoke('ai-coding-assistant', {
+      console.log('Sending request to AI assistant...');
+      
+      const { data, error: functionError } = await supabase.functions.invoke('ai-coding-assistant', {
         body: {
           code: currentCode,
           question: questionText,
@@ -39,15 +45,35 @@ const AICodingAssistant = ({ currentCode, language }: AICodingAssistantProps) =>
         }
       });
 
-      if (error) throw error;
+      if (functionError) {
+        console.error('Supabase function error:', functionError);
+        throw functionError;
+      }
 
-      setResponse(data.response);
-      setQuestion('');
+      if (data?.error) {
+        console.error('AI Assistant API error:', data.error);
+        setError(data.error);
+        toast({
+          title: "AI Assistant Error",
+          description: data.error,
+          variant: "destructive",
+        });
+        return;
+      }
+
+      if (data?.response) {
+        setResponse(data.response);
+        setQuestion('');
+      } else {
+        throw new Error('No response received from AI assistant');
+      }
     } catch (error) {
       console.error('AI Assistant error:', error);
+      const errorMessage = error?.message || 'Failed to get AI assistance. Please try again.';
+      setError(errorMessage);
       toast({
         title: "Error",
-        description: "Failed to get AI assistance. Please try again.",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
@@ -132,6 +158,19 @@ const AICodingAssistant = ({ currentCode, language }: AICodingAssistantProps) =>
             )}
           </Button>
         </div>
+
+        {/* Error Display */}
+        {error && (
+          <div className="mb-4 bg-red-50 rounded p-3 border border-red-200">
+            <div className="flex items-center mb-2">
+              <AlertCircle className="h-4 w-4 text-red-600 mr-2" />
+              <span className="text-sm font-medium text-red-700">Error:</span>
+            </div>
+            <div className="text-sm text-red-800">
+              {error}
+            </div>
+          </div>
+        )}
 
         {/* Response */}
         {response && (
