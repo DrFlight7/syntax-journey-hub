@@ -2,7 +2,7 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
-const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
+const deepSeekApiKey = Deno.env.get('DEEPSEEK_API_KEY');
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -19,13 +19,13 @@ serve(async (req) => {
     const { code, question, language } = await req.json();
 
     // Check if API key exists and log its presence (not the actual key)
-    console.log('OpenAI API key present:', !!openAIApiKey);
-    console.log('API key length:', openAIApiKey?.length || 0);
+    console.log('DeepSeek API key present:', !!deepSeekApiKey);
+    console.log('API key length:', deepSeekApiKey?.length || 0);
     
-    if (!openAIApiKey) {
-      console.error('OpenAI API key not found in environment');
+    if (!deepSeekApiKey) {
+      console.error('DeepSeek API key not found in environment');
       return new Response(JSON.stringify({ 
-        error: 'OpenAI API key is not configured. Please add your API key in the Supabase secrets.' 
+        error: 'DeepSeek API key is not configured. Please add your API key in the Supabase secrets.' 
       }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -34,11 +34,11 @@ serve(async (req) => {
 
     console.log('AI Assistant request:', { question, language, codeLength: code?.length });
 
-    // Validate API key format (OpenAI keys start with "sk-")
-    if (!openAIApiKey.startsWith('sk-')) {
-      console.error('Invalid OpenAI API key format');
+    // Validate API key format (DeepSeek keys start with "sk-")
+    if (!deepSeekApiKey.startsWith('sk-')) {
+      console.error('Invalid DeepSeek API key format');
       return new Response(JSON.stringify({ 
-        error: 'Invalid OpenAI API key format. Please check your API key.' 
+        error: 'Invalid DeepSeek API key format. Please check your API key.' 
       }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -67,16 +67,16 @@ ${code}
 Question: ${question}`;
     }
 
-    console.log('Making request to OpenAI API...');
+    console.log('Making request to DeepSeek API...');
 
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    const response = await fetch('https://api.deepseek.com/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${openAIApiKey}`,
+        'Authorization': `Bearer ${deepSeekApiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-4o-mini',
+        model: 'deepseek-chat',
         messages: [
           { role: 'system', content: systemMessage },
           { role: 'user', content: userMessage }
@@ -86,19 +86,19 @@ Question: ${question}`;
       }),
     });
 
-    console.log('OpenAI API response status:', response.status);
+    console.log('DeepSeek API response status:', response.status);
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('OpenAI API error details:', errorText);
+      console.error('DeepSeek API error details:', errorText);
       
-      let errorMessage = 'An error occurred while calling OpenAI API';
+      let errorMessage = 'An error occurred while calling DeepSeek API';
       if (response.status === 401) {
-        errorMessage = 'Invalid OpenAI API key. Please check your API key in the Supabase secrets.';
+        errorMessage = 'Invalid DeepSeek API key. Please check your API key in the Supabase secrets.';
       } else if (response.status === 429) {
-        errorMessage = 'OpenAI API rate limit exceeded. Please try again later.';
+        errorMessage = 'DeepSeek API rate limit exceeded. Please try again later.';
       } else if (response.status === 400) {
-        errorMessage = 'Invalid request to OpenAI API. Please try a different question.';
+        errorMessage = 'Invalid request to DeepSeek API. Please try a different question.';
       }
       
       return new Response(JSON.stringify({ error: errorMessage }), {
@@ -110,9 +110,9 @@ Question: ${question}`;
     const data = await response.json();
     
     if (!data.choices || !data.choices[0] || !data.choices[0].message) {
-      console.error('Unexpected OpenAI response structure:', data);
+      console.error('Unexpected DeepSeek response structure:', data);
       return new Response(JSON.stringify({ 
-        error: 'Invalid response from OpenAI API' 
+        error: 'Invalid response from DeepSeek API' 
       }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
