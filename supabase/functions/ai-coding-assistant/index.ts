@@ -18,12 +18,32 @@ serve(async (req) => {
   try {
     const { code, question, language } = await req.json();
 
+    // Check if API key exists and log its presence (not the actual key)
+    console.log('OpenAI API key present:', !!openAIApiKey);
+    console.log('API key length:', openAIApiKey?.length || 0);
+    
     if (!openAIApiKey) {
       console.error('OpenAI API key not found in environment');
-      throw new Error('OpenAI API key not configured');
+      return new Response(JSON.stringify({ 
+        error: 'OpenAI API key is not configured. Please add your API key in the Supabase secrets.' 
+      }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
     console.log('AI Assistant request:', { question, language, codeLength: code?.length });
+
+    // Validate API key format (OpenAI keys start with "sk-")
+    if (!openAIApiKey.startsWith('sk-')) {
+      console.error('Invalid OpenAI API key format');
+      return new Response(JSON.stringify({ 
+        error: 'Invalid OpenAI API key format. Please check your API key.' 
+      }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
 
     const systemMessage = `You are an expert coding assistant specialized in helping users learn programming. 
     
@@ -71,14 +91,32 @@ Question: ${question}`;
     if (!response.ok) {
       const errorText = await response.text();
       console.error('OpenAI API error details:', errorText);
-      throw new Error(`OpenAI API error: ${response.status} - ${errorText}`);
+      
+      let errorMessage = 'An error occurred while calling OpenAI API';
+      if (response.status === 401) {
+        errorMessage = 'Invalid OpenAI API key. Please check your API key in the Supabase secrets.';
+      } else if (response.status === 429) {
+        errorMessage = 'OpenAI API rate limit exceeded. Please try again later.';
+      } else if (response.status === 400) {
+        errorMessage = 'Invalid request to OpenAI API. Please try a different question.';
+      }
+      
+      return new Response(JSON.stringify({ error: errorMessage }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
     const data = await response.json();
     
     if (!data.choices || !data.choices[0] || !data.choices[0].message) {
       console.error('Unexpected OpenAI response structure:', data);
-      throw new Error('Invalid response from OpenAI API');
+      return new Response(JSON.stringify({ 
+        error: 'Invalid response from OpenAI API' 
+      }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
     const aiResponse = data.choices[0].message.content;
@@ -92,13 +130,7 @@ Question: ${question}`;
     console.error('Error in AI coding assistant:', error);
     
     let errorMessage = 'An unexpected error occurred';
-    if (error.message.includes('OpenAI API key not configured')) {
-      errorMessage = 'OpenAI API key is not configured. Please add your API key in the Supabase secrets.';
-    } else if (error.message.includes('401')) {
-      errorMessage = 'Invalid OpenAI API key. Please check your API key in the Supabase secrets.';
-    } else if (error.message.includes('429')) {
-      errorMessage = 'OpenAI API rate limit exceeded. Please try again later.';
-    } else if (error.message.includes('OpenAI API error')) {
+    if (error instanceof Error) {
       errorMessage = error.message;
     }
 
