@@ -17,8 +17,8 @@ const Index = () => {
         navigate('/teacher/dashboard');
       } else if (role === 'student') {
         navigate('/student/dashboard');
-      } else {
-        // User has no role assigned, redirect to auth to select role
+      } else if (role === null && user) {
+        // User exists but has no role assigned, redirect to auth to select role
         navigate('/auth');
       }
     }

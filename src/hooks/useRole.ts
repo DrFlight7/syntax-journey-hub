@@ -23,13 +23,13 @@ export const useRole = () => {
           .from('user_roles')
           .select('role')
           .eq('user_id', user.id)
-          .single();
+          .maybeSingle();
 
-        if (error) {
+        if (error && error.code !== 'PGRST116') {
           console.error('Error fetching user role:', error);
           setRole(null);
         } else {
-          setRole(data?.role as UserRole);
+          setRole(data?.role as UserRole || null);
         }
       } catch (error) {
         console.error('Error fetching user role:', error);
