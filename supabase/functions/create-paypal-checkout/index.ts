@@ -1,4 +1,5 @@
-//Testing edit and update to see changes and redeployment 6/15/2025 11:18pm
+//Updated for PAYPAL LIVE environment 2025-06-15
+
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 
 const corsHeaders = {
@@ -9,7 +10,7 @@ const corsHeaders = {
 // Helper: Get PayPal access token with detailed logging
 async function getPayPalAccessToken(clientId: string, clientSecret: string): Promise<string> {
   const credentials = btoa(`${clientId}:${clientSecret}`);
-  const fetchUrl = "https://api-m.sandbox.paypal.com/v1/oauth2/token";
+  const fetchUrl = "https://api-m.paypal.com/v1/oauth2/token"; // LIVE endpoint
   try {
     console.log("[PayPal] Requesting access token...");
     const response = await fetch(fetchUrl, {
@@ -37,7 +38,7 @@ async function getPayPalAccessToken(clientId: string, clientSecret: string): Pro
 
 // Helper: Create PayPal Subscription with detailed logging
 async function createPayPalSubscription(accessToken: string, planId: string, returnUrl: string, cancelUrl: string) {
-  const fetchUrl = "https://api-m.sandbox.paypal.com/v1/billing/subscriptions";
+  const fetchUrl = "https://api-m.paypal.com/v1/billing/subscriptions"; // LIVE endpoint
   try {
     console.log("[PayPal] Creating subscription...", { planId, returnUrl, cancelUrl });
     const response = await fetch(fetchUrl, {
