@@ -9,6 +9,39 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      courses: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          difficulty_level: string | null
+          id: string
+          is_published: boolean | null
+          language: string
+          title: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          difficulty_level?: string | null
+          id?: string
+          is_published?: boolean | null
+          language?: string
+          title: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          difficulty_level?: string | null
+          id?: string
+          is_published?: boolean | null
+          language?: string
+          title?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -74,6 +107,160 @@ export type Database = {
           user_id?: string | null
         }
         Relationships: []
+      }
+      task_submissions: {
+        Row: {
+          attempt_number: number | null
+          execution_output: string | null
+          id: string
+          is_correct: boolean | null
+          submitted_at: string | null
+          submitted_code: string
+          task_id: string | null
+          user_id: string | null
+          validation_results: Json | null
+        }
+        Insert: {
+          attempt_number?: number | null
+          execution_output?: string | null
+          id?: string
+          is_correct?: boolean | null
+          submitted_at?: string | null
+          submitted_code: string
+          task_id?: string | null
+          user_id?: string | null
+          validation_results?: Json | null
+        }
+        Update: {
+          attempt_number?: number | null
+          execution_output?: string | null
+          id?: string
+          is_correct?: boolean | null
+          submitted_at?: string | null
+          submitted_code?: string
+          task_id?: string | null
+          user_id?: string | null
+          validation_results?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_submissions_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tasks: {
+        Row: {
+          course_id: string | null
+          created_at: string | null
+          description: string
+          difficulty_level: string | null
+          expected_output: string | null
+          id: string
+          initial_code: string
+          instructions: string
+          order_index: number
+          tags: string[] | null
+          test_cases: Json | null
+          title: string
+          updated_at: string | null
+        }
+        Insert: {
+          course_id?: string | null
+          created_at?: string | null
+          description: string
+          difficulty_level?: string | null
+          expected_output?: string | null
+          id?: string
+          initial_code: string
+          instructions: string
+          order_index: number
+          tags?: string[] | null
+          test_cases?: Json | null
+          title: string
+          updated_at?: string | null
+        }
+        Update: {
+          course_id?: string | null
+          created_at?: string | null
+          description?: string
+          difficulty_level?: string | null
+          expected_output?: string | null
+          id?: string
+          initial_code?: string
+          instructions?: string
+          order_index?: number
+          tags?: string[] | null
+          test_cases?: Json | null
+          title?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tasks_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_progress: {
+        Row: {
+          completed_at: string | null
+          completed_tasks: number | null
+          completion_percentage: number | null
+          course_id: string | null
+          current_task_id: string | null
+          id: string
+          last_activity_at: string | null
+          started_at: string | null
+          total_tasks: number | null
+          user_id: string | null
+        }
+        Insert: {
+          completed_at?: string | null
+          completed_tasks?: number | null
+          completion_percentage?: number | null
+          course_id?: string | null
+          current_task_id?: string | null
+          id?: string
+          last_activity_at?: string | null
+          started_at?: string | null
+          total_tasks?: number | null
+          user_id?: string | null
+        }
+        Update: {
+          completed_at?: string | null
+          completed_tasks?: number | null
+          completion_percentage?: number | null
+          course_id?: string | null
+          current_task_id?: string | null
+          id?: string
+          last_activity_at?: string | null
+          started_at?: string | null
+          total_tasks?: number | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_progress_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_progress_current_task_id_fkey"
+            columns: ["current_task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {

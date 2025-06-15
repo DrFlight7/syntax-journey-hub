@@ -1,57 +1,30 @@
+
 import { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import LessonContent from "../components/LessonContent";
-import InteractiveCodeEditor from "../components/InteractiveCodeEditor";
+import TaskContent from "../components/TaskContent";
+import TaskSubmissionEditor from "../components/TaskSubmissionEditor";
 import UserProfile from "../components/UserProfile";
 import SubscriptionBanner from "../components/SubscriptionBanner";
+import { useTaskManager } from "../hooks/useTaskManager";
 import { Button } from "@/components/ui/button";
-
-const lesson = {
-  title: "Introduction to Python Variables",
-  content: `
-    <h2>Welcome to Python Programming!</h2>
-    <p>In this lesson, you'll learn about <strong>variables</strong> in Python. Variables are fundamental building blocks that allow you to store and manipulate data.</p>
-    
-    <h3>What is a Variable?</h3>
-    <p>A variable is like a container that holds a value. Think of it as a labeled box where you can store information and retrieve it later.</p>
-    
-    <h3>Creating Variables</h3>
-    <p>In Python, creating a variable is simple:</p>
-    <pre><code>name = "Alice"
-age = 25
-height = 5.6</code></pre>
-    
-    <h3>Variable Rules</h3>
-    <ul>
-      <li>Variable names must start with a letter or underscore</li>
-      <li>They can contain letters, numbers, and underscores</li>
-      <li>Variable names are case-sensitive</li>
-      <li>Avoid using Python keywords (like <code>if</code>, <code>for</code>, <code>while</code>)</li>
-    </ul>
-    
-    <h3>Try It Yourself!</h3>
-    <p>Use the code editor on the right to create your own variables and print them out. Try the example code or experiment with your own!</p>
-  `,
-  initialCode: `# Welcome to Python!
-# Let's create some variables
-
-name = "Your Name"
-age = 20
-favorite_color = "blue"
-
-# Print the variables
-print("Hello, my name is", name)
-print("I am", age, "years old")
-print("My favorite color is", favorite_color)
-
-# Try creating your own variables below:
-`
-};
 
 const Index = () => {
   const { user, loading, signOut } = useAuth();
   const navigate = useNavigate();
+  
+  // Task management
+  const {
+    currentCourse,
+    currentTask,
+    userProgress,
+    allTasks,
+    isLoading: tasksLoading,
+    submitTask,
+    canMoveToNextTask,
+    moveToPreviousTask,
+    moveToSpecificTask
+  } = useTaskManager();
 
   // Add stuck loading timer
   const [loadingStuck, setLoadingStuck] = useState(false);
@@ -115,12 +88,12 @@ const Index = () => {
     );
   }
 
-  if (loading) {
+  if (loading || tasksLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading...</p>
+          <p className="text-gray-600">Loading your learning journey...</p>
         </div>
       </div>
     );
@@ -147,7 +120,7 @@ const Index = () => {
           </div>
           <div className="text-center">
             <p className="text-lg text-gray-600 font-medium">
-              Learn to code interactively with real-time feedback!
+              Complete coding tasks and track your progress!
             </p>
           </div>
         </div>
@@ -160,14 +133,26 @@ const Index = () => {
           <SubscriptionBanner />
           
           <div className="flex flex-col lg:flex-row bg-white rounded-2xl shadow-2xl overflow-hidden border border-gray-200">
-            {/* Lesson Content Section */}
+            {/* Task Content Section */}
             <section className="w-full lg:w-1/2 p-6 md:p-8 overflow-y-auto max-h-[80vh] border-r border-gray-200 bg-gradient-to-b from-white to-gray-50">
-              <LessonContent title={lesson.title} content={lesson.content} />
+              <TaskContent 
+                task={currentTask}
+                course={currentCourse}
+                userProgress={userProgress}
+                allTasks={allTasks}
+                canMoveToNext={canMoveToNextTask()}
+                onPreviousTask={moveToPreviousTask}
+                onNextTask={moveToSpecificTask}
+              />
             </section>
 
-            {/* Interactive Code Editor Section */}
-            <section className="w-full lg:w-1/2 p-6 md:p-8 bg-gray-900 flex flex-col">
-              <InteractiveCodeEditor initialCode={lesson.initialCode} />
+            {/* Task Submission Editor Section */}
+            <section className="w-full lg:w-1/2 flex flex-col">
+              <TaskSubmissionEditor 
+                task={currentTask}
+                language={currentCourse?.language || 'python'}
+                onSubmit={submitTask}
+              />
             </section>
           </div>
         </div>
