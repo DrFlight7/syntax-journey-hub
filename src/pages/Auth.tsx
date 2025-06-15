@@ -6,8 +6,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
 const Auth = () => {
   const { user, signIn, signUp } = useAuth();
@@ -16,7 +18,12 @@ const Auth = () => {
   
   const [isLoading, setIsLoading] = useState(false);
   const [loginForm, setLoginForm] = useState({ email: '', password: '' });
-  const [signupForm, setSignupForm] = useState({ email: '', password: '', fullName: '' });
+  const [signupForm, setSignupForm] = useState({ 
+    email: '', 
+    password: '', 
+    fullName: '', 
+    role: '' as 'teacher' | 'student' | ''
+  });
 
   // Redirect if already authenticated
   useEffect(() => {
@@ -58,6 +65,16 @@ const Auth = () => {
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!signupForm.role) {
+      toast({
+        title: "Role required",
+        description: "Please select whether you are a teacher or student.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsLoading(true);
 
     try {
@@ -70,6 +87,19 @@ const Auth = () => {
           variant: "destructive",
         });
       } else {
+        // After successful signup, we need to assign the role
+        // This will be handled in the database trigger, but we'll also do it here as backup
+        const { data: { user } } = await supabase.auth.getUser();
+        
+        if (user) {
+          await supabase
+            .from('user_roles')
+            .insert({
+              user_id: user.id,
+              role: signupForm.role
+            });
+        }
+
         toast({
           title: "Account created!",
           description: "Please check your email to verify your account.",
@@ -167,6 +197,20 @@ const Auth = () => {
                     onChange={(e) => setSignupForm(prev => ({ ...prev, password: e.target.value }))}
                     required
                   />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="signup-role">I am a...</Label>
+                  <Select value={signupForm.role} onValueChange={(value: 'teacher' | 'student') => 
+                    setSignupForm(prev => ({ ...prev, role: value }))
+                  }>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select your role" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="student">Student</SelectItem>
+                      <SelectItem value="teacher">Teacher</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
                 <Button type="submit" className="w-full" disabled={isLoading}>
                   {isLoading ? 'Creating account...' : 'Sign Up'}
