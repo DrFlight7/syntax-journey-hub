@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useRole } from '@/hooks/useRole';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -13,6 +14,7 @@ import { supabase } from '@/integrations/supabase/client';
 
 const Auth = () => {
   const { user, signIn, signUp } = useAuth();
+  const { role, loading: roleLoading } = useRole();
   const navigate = useNavigate();
   const { toast } = useToast();
   
@@ -24,13 +26,14 @@ const Auth = () => {
     fullName: '', 
     role: '' as 'teacher' | 'student' | ''
   });
+  const [selectedRole, setSelectedRole] = useState<'teacher' | 'student' | ''>('');
 
-  // Redirect if already authenticated
+  // Redirect if user is authenticated AND has a role
   useEffect(() => {
-    if (user) {
+    if (user && !roleLoading && role) {
       navigate('/');
     }
-  }, [user, navigate]);
+  }, [user, role, roleLoading, navigate]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -88,7 +91,6 @@ const Auth = () => {
         });
       } else {
         // After successful signup, we need to assign the role
-        // This will be handled in the database trigger, but we'll also do it here as backup
         const { data: { user } } = await supabase.auth.getUser();
         
         if (user) {
@@ -115,6 +117,93 @@ const Auth = () => {
       setIsLoading(false);
     }
   };
+
+  const handleRoleSelection = async () => {
+    if (!selectedRole || !user) return;
+
+    setIsLoading(true);
+    try {
+      const { error } = await supabase
+        .from('user_roles')
+        .insert({
+          user_id: user.id,
+          role: selectedRole
+        });
+
+      if (error) {
+        toast({
+          title: "Error",
+          description: "Failed to assign role. Please try again.",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Role assigned!",
+          description: `You are now registered as a ${selectedRole}.`,
+        });
+        navigate('/');
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "An unexpected error occurred.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // If user is authenticated but has no role, show role selection
+  if (user && !roleLoading && !role) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center p-4">
+        <Card className="w-full max-w-md">
+          <CardHeader className="text-center">
+            <CardTitle className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-600">
+              Select Your Role
+            </CardTitle>
+            <CardDescription>
+              Please choose your role to continue
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="role-select">I am a...</Label>
+              <Select value={selectedRole} onValueChange={(value: 'teacher' | 'student') => setSelectedRole(value)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select your role" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="student">Student</SelectItem>
+                  <SelectItem value="teacher">Teacher</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <Button 
+              onClick={handleRoleSelection} 
+              className="w-full" 
+              disabled={isLoading || !selectedRole}
+            >
+              {isLoading ? 'Setting up...' : 'Continue'}
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Show loading if we're still checking the role
+  if (user && roleLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center p-4">
