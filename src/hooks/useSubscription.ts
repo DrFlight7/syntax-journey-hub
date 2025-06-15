@@ -108,7 +108,7 @@ export const useSubscription = () => {
     setLoading(true);
     try {
       // NOTE: You should replace the below PayPal PLAN_ID with your live/sandbox plan (created at developer.paypal.com)
-      const PAYPAL_PLAN_ID = "P-TEST-PREMIUM-PLANID"; // <-- Replace this with your actual Plan ID
+      const PAYPAL_PLAN_ID = "P-3UD510103M4756148NBHQFOQ"; // <-- Replace this with your actual Plan ID
 
       const { data, error } = await supabase.functions.invoke('create-paypal-checkout', {
         body: { plan_id: PAYPAL_PLAN_ID },
