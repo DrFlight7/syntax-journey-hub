@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import { Json } from '@/integrations/supabase/types';
 
 interface Task {
   id: string;
@@ -12,7 +13,7 @@ interface Task {
   instructions: string;
   initial_code: string;
   expected_output: string | null;
-  test_cases: any[];
+  test_cases: Json;
   order_index: number;
   difficulty_level: string;
   tags: string[];
@@ -136,6 +137,17 @@ export const useTaskManager = () => {
     if (!currentTask || !user || !userProgress) return false;
 
     try {
+      // Call the validate-code edge function
+      const { data: validationResult, error: validationError } = await supabase.functions.invoke('validate-code', {
+        body: {
+          code,
+          taskId: currentTask.id,
+          language: currentCourse?.language || 'python'
+        }
+      });
+
+      if (validationError) throw validationError;
+
       // Get the latest attempt number
       const { data: submissions } = await supabase
         .from('task_submissions')
@@ -149,8 +161,7 @@ export const useTaskManager = () => {
         ? (submissions[0].attempt_number || 0) + 1 
         : 1;
 
-      // For now, we'll do basic validation (in Phase 3, this will be more sophisticated)
-      const isCorrect = validateCode(code, currentTask.expected_output);
+      const isCorrect = validationResult?.isCorrect || false;
 
       // Save submission
       const { error: submissionError } = await supabase
@@ -160,7 +171,8 @@ export const useTaskManager = () => {
           task_id: currentTask.id,
           submitted_code: code,
           is_correct: isCorrect,
-          execution_output: isCorrect ? 'Success!' : 'Output does not match expected result',
+          execution_output: validationResult?.executionOutput || 'No output',
+          validation_results: validationResult?.validationResults || {},
           attempt_number: attemptNumber
         });
 
@@ -176,7 +188,7 @@ export const useTaskManager = () => {
       } else {
         toast({
           title: "Not quite right",
-          description: "Your output doesn't match the expected result. Try again!",
+          description: validationResult?.executionOutput || "Your output doesn't match the expected result. Try again!",
           variant: "destructive",
         });
         return false;
@@ -221,24 +233,6 @@ export const useTaskManager = () => {
     if (nextTask) {
       setCurrentTask(nextTask);
     }
-  };
-
-  // Basic validation function (will be enhanced in Phase 3)
-  const validateCode = (code: string, expectedOutput: string | null): boolean => {
-    if (!expectedOutput) return true;
-    
-    // This is a simplified validation - in reality, we'd execute the code and compare outputs
-    // For now, just check if the code contains the expected elements
-    const codeLines = code.toLowerCase();
-    
-    if (expectedOutput.includes('Hello, my name is')) {
-      return codeLines.includes('print') && 
-             codeLines.includes('name') && 
-             codeLines.includes('age') && 
-             codeLines.includes('favorite_color');
-    }
-    
-    return true;
   };
 
   const canMoveToNextTask = (): boolean => {
