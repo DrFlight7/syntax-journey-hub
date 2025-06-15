@@ -77,11 +77,11 @@ const TaskSubmissionEditor = ({ task, language, onSubmit }: TaskSubmissionEditor
             if (assignmentMatch) {
               const [, varName, value] = assignmentMatch;
               try {
-                // Simple value parsing
+                // Simple value parsing - store the actual value without quotes
                 if (value.startsWith('"') && value.endsWith('"')) {
-                  variables[varName] = value.slice(1, -1);
+                  variables[varName] = value.slice(1, -1); // Remove quotes
                 } else if (value.startsWith("'") && value.endsWith("'")) {
-                  variables[varName] = value.slice(1, -1);
+                  variables[varName] = value.slice(1, -1); // Remove quotes
                 } else if (!isNaN(Number(value))) {
                   variables[varName] = Number(value);
                 } else {
@@ -106,13 +106,13 @@ const TaskSubmissionEditor = ({ task, language, onSubmit }: TaskSubmissionEditor
                 const arg = args[i];
                 
                 if (arg.startsWith('"') && arg.endsWith('"')) {
-                  // String literal
+                  // String literal - remove quotes for output
                   outputLine += arg.slice(1, -1);
                 } else if (arg.startsWith("'") && arg.endsWith("'")) {
-                  // String literal
+                  // String literal - remove quotes for output
                   outputLine += arg.slice(1, -1);
                 } else if (variables[arg] !== undefined) {
-                  // Variable
+                  // Variable - use stored value (already without quotes)
                   outputLine += variables[arg];
                 } else if (!isNaN(Number(arg))) {
                   // Number
