@@ -1,4 +1,3 @@
-
 import { useState, useRef, useEffect } from 'react';
 import Editor from '@monaco-editor/react';
 import { Send, Square, ChevronDown, CheckCircle, XCircle, Loader2 } from 'lucide-react';
@@ -23,6 +22,8 @@ const TaskSubmissionEditor = ({ task, language, onSubmit }: TaskSubmissionEditor
   const [code, setCode] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [lastSubmissionResult, setLastSubmissionResult] = useState<boolean | null>(null);
+  const [previewOutput, setPreviewOutput] = useState('Click "Preview" to see code output...');
+  const [isPreviewLoading, setIsPreviewLoading] = useState(false);
   const editorRef = useRef(null);
 
   // Update code when task changes
@@ -30,6 +31,7 @@ const TaskSubmissionEditor = ({ task, language, onSubmit }: TaskSubmissionEditor
     if (task) {
       setCode(task.initial_code);
       setLastSubmissionResult(null);
+      setPreviewOutput('Click "Preview" to see code output...');
     }
   }, [task?.id]);
 
@@ -53,23 +55,93 @@ const TaskSubmissionEditor = ({ task, language, onSubmit }: TaskSubmissionEditor
   };
 
   const runCodePreview = () => {
-    // Simple code execution simulation for preview
-    if (language === 'python' && code.includes('print')) {
-      const lines = code.split('\n');
-      const printLines = lines.filter(line => line.trim().startsWith('print('));
-      if (printLines.length > 0) {
-        let output = '';
-        printLines.forEach(line => {
-          const match = line.match(/print\((.*)\)/);
-          if (match) {
-            const content = match[1].replace(/"/g, '').replace(/'/g, '');
-            output += content + '\n';
+    setIsPreviewLoading(true);
+    
+    setTimeout(() => {
+      try {
+        if (language === 'python') {
+          // Enhanced Python simulation
+          const lines = code.split('\n');
+          let output = '';
+          let variables: { [key: string]: any } = {};
+          
+          // Process each line
+          for (const line of lines) {
+            const trimmedLine = line.trim();
+            
+            // Skip comments and empty lines
+            if (trimmedLine.startsWith('#') || !trimmedLine) continue;
+            
+            // Handle variable assignments
+            const assignmentMatch = trimmedLine.match(/^(\w+)\s*=\s*(.+)$/);
+            if (assignmentMatch) {
+              const [, varName, value] = assignmentMatch;
+              try {
+                // Simple value parsing
+                if (value.startsWith('"') && value.endsWith('"')) {
+                  variables[varName] = value.slice(1, -1);
+                } else if (value.startsWith("'") && value.endsWith("'")) {
+                  variables[varName] = value.slice(1, -1);
+                } else if (!isNaN(Number(value))) {
+                  variables[varName] = Number(value);
+                } else {
+                  variables[varName] = value;
+                }
+              } catch (e) {
+                variables[varName] = value;
+              }
+              continue;
+            }
+            
+            // Handle print statements
+            const printMatch = trimmedLine.match(/^print\((.*)\)$/);
+            if (printMatch) {
+              const printContent = printMatch[1];
+              let outputLine = '';
+              
+              // Parse print arguments
+              const args = printContent.split(',').map(arg => arg.trim());
+              
+              for (let i = 0; i < args.length; i++) {
+                const arg = args[i];
+                
+                if (arg.startsWith('"') && arg.endsWith('"')) {
+                  // String literal
+                  outputLine += arg.slice(1, -1);
+                } else if (arg.startsWith("'") && arg.endsWith("'")) {
+                  // String literal
+                  outputLine += arg.slice(1, -1);
+                } else if (variables[arg] !== undefined) {
+                  // Variable
+                  outputLine += variables[arg];
+                } else if (!isNaN(Number(arg))) {
+                  // Number
+                  outputLine += arg;
+                } else {
+                  // Unknown, keep as is
+                  outputLine += arg;
+                }
+                
+                // Add space between arguments (Python print default)
+                if (i < args.length - 1) {
+                  outputLine += ' ';
+                }
+              }
+              
+              output += outputLine + '\n';
+            }
           }
-        });
-        return output || 'Code preview...';
+          
+          setPreviewOutput(output || 'No output generated');
+        } else {
+          setPreviewOutput(`${language} preview not implemented yet`);
+        }
+      } catch (error) {
+        setPreviewOutput(`Preview error: ${error}`);
+      } finally {
+        setIsPreviewLoading(false);
       }
-    }
-    return 'Click "Submit Solution" to validate your code.';
+    }, 500);
   };
 
   if (!task) {
@@ -184,13 +256,21 @@ const TaskSubmissionEditor = ({ task, language, onSubmit }: TaskSubmissionEditor
             variant="outline"
             size="sm"
             onClick={runCodePreview}
+            disabled={isPreviewLoading}
             className="text-xs bg-gray-700 border-gray-600 text-gray-300 hover:bg-gray-600"
           >
-            Preview
+            {isPreviewLoading ? (
+              <>
+                <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                Running...
+              </>
+            ) : (
+              'Preview'
+            )}
           </Button>
         </div>
         <div className="bg-black rounded p-3 font-mono text-sm text-blue-400 min-h-[80px] overflow-auto border border-gray-600">
-          {runCodePreview()}
+          <pre className="whitespace-pre-wrap">{previewOutput}</pre>
         </div>
       </div>
 
