@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+
+import React from 'react';
 import { useSubscription } from '@/hooks/useSubscription';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -14,8 +15,6 @@ const SubscriptionBanner = () => {
     createPaypalCheckoutSession,
     openCustomerPortal,
   } = useSubscription();
-
-  const [selectedProvider, setSelectedProvider] = useState<'stripe' | 'paypal'>('stripe');
 
   if (subscribed) {
     return (
@@ -61,43 +60,22 @@ const SubscriptionBanner = () => {
       <CardContent>
         <div className="flex flex-col md:flex-row gap-4 mb-4">
           <Button
-            variant={selectedProvider === 'stripe' ? "default" : "outline"}
-            className={`flex-1 ${selectedProvider === 'stripe' ? "bg-blue-600 hover:bg-blue-700" : ""}`}
-            onClick={() => setSelectedProvider('stripe')}
+            className="flex-1 bg-blue-600 hover:bg-blue-700"
+            onClick={createCheckoutSession}
             disabled={loading}
           >
             <CreditCard className="w-4 h-4 mr-2" />
-            Pay with Card (Stripe)
+            {loading ? "Processing..." : "Pay with Card (Stripe)"}
           </Button>
           <Button
-            variant={selectedProvider === 'paypal' ? "default" : "outline"}
-            className={`flex-1 ${selectedProvider === 'paypal' ? "bg-yellow-400 hover:bg-yellow-500 text-black" : ""}`}
-            onClick={() => setSelectedProvider('paypal')}
+            className="flex-1 bg-yellow-400 hover:bg-yellow-500 text-black"
+            onClick={createPaypalCheckoutSession}
             disabled={loading}
           >
             <Wallet className="w-4 h-4 mr-2" />
-            Pay with PayPal
+            {loading ? "Processing..." : "Pay with PayPal"}
           </Button>
         </div>
-        <Button
-          onClick={
-            selectedProvider === 'stripe'
-              ? createCheckoutSession
-              : createPaypalCheckoutSession
-          }
-          disabled={loading}
-          className={
-            selectedProvider === 'paypal'
-              ? 'bg-yellow-400 hover:bg-yellow-500 text-black w-full'
-              : 'bg-blue-600 hover:bg-blue-700 w-full'
-          }
-        >
-          {loading
-            ? "Loading..."
-            : selectedProvider === 'paypal'
-              ? "Subscribe with PayPal"
-              : "Subscribe Now - ₱299/month"}
-        </Button>
         <div className="text-xs mt-4 text-gray-500">
           <span className="font-semibold">PayPal works with individual accounts—no business name required!</span><br />
           Card payments via Stripe support Visa/Mastercard/GCash Card. More options coming soon.
