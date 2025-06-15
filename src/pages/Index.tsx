@@ -23,7 +23,8 @@ const Index = () => {
     submitTask,
     canMoveToNextTask,
     moveToPreviousTask,
-    moveToSpecificTask
+    moveToSpecificTask,
+    resetProgress
   } = useTaskManager();
 
   // Add stuck loading timer
@@ -143,6 +144,7 @@ const Index = () => {
                 canMoveToNext={canMoveToNextTask()}
                 onPreviousTask={moveToPreviousTask}
                 onNextTask={moveToSpecificTask}
+                onResetProgress={resetProgress}
               />
             </section>
 

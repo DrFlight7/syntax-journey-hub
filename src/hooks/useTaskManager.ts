@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -126,6 +125,77 @@ export const useTaskManager = () => {
       toast({
         title: "Error",
         description: "Failed to load your progress. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const resetProgress = async () => {
+    if (!user || !currentCourse) {
+      toast({
+        title: "Error",
+        description: "No user or course found to reset progress for.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+
+      // Delete all task submissions for this user and course
+      const { error: submissionsError } = await supabase
+        .from('task_submissions')
+        .delete()
+        .eq('user_id', user.id)
+        .in('task_id', allTasks.map(task => task.id));
+
+      if (submissionsError) throw submissionsError;
+
+      // Reset user progress to the first task
+      const firstTask = allTasks.find(task => task.order_index === 1);
+      if (!firstTask) {
+        throw new Error('No first task found');
+      }
+
+      const { error: progressError } = await supabase
+        .from('user_progress')
+        .update({
+          current_task_id: firstTask.id,
+          completed_tasks: 0,
+          completion_percentage: 0,
+          completed_at: null,
+          last_activity_at: new Date().toISOString()
+        })
+        .eq('user_id', user.id)
+        .eq('course_id', currentCourse.id);
+
+      if (progressError) throw progressError;
+
+      // Update local state
+      setCurrentTask(firstTask);
+      if (userProgress) {
+        setUserProgress({
+          ...userProgress,
+          current_task_id: firstTask.id,
+          completed_tasks: 0,
+          completion_percentage: 0,
+          completed_at: null
+        });
+      }
+
+      toast({
+        title: "Progress Reset",
+        description: "Your progress has been reset to the beginning. You can now retest the platform!",
+      });
+
+    } catch (error) {
+      console.error('Error resetting progress:', error);
+      toast({
+        title: "Error",
+        description: "Failed to reset progress. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -266,6 +336,7 @@ export const useTaskManager = () => {
     canMoveToNextTask,
     moveToPreviousTask,
     moveToSpecificTask,
-    loadUserProgress
+    loadUserProgress,
+    resetProgress
   };
 };

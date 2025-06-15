@@ -1,24 +1,33 @@
-
-import { CheckCircle, Clock, Trophy, ChevronLeft, ChevronRight } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Progress } from '@/components/ui/progress';
+import React from 'react';
+import { Button } from "@/components/ui/button";
+import { ChevronLeft, ChevronRight, RotateCcw } from "lucide-react";
 
 interface Task {
   id: string;
+  course_id: string;
   title: string;
   description: string;
   instructions: string;
-  difficulty_level: string;
+  initial_code: string;
+  expected_output: string | null;
+  test_cases: any;
   order_index: number;
+  difficulty_level: string;
+  tags: string[];
 }
 
 interface Course {
+  id: string;
   title: string;
   description: string;
   difficulty_level: string;
+  language: string;
 }
 
 interface UserProgress {
+  id: string;
+  course_id: string;
+  current_task_id: string | null;
   completed_tasks: number;
   total_tasks: number;
   completion_percentage: number;
@@ -32,6 +41,7 @@ interface TaskContentProps {
   canMoveToNext: boolean;
   onPreviousTask: () => void;
   onNextTask: (taskId: string) => void;
+  onResetProgress: () => void;
 }
 
 const TaskContent = ({ 
@@ -41,176 +51,141 @@ const TaskContent = ({
   allTasks, 
   canMoveToNext, 
   onPreviousTask, 
-  onNextTask 
+  onNextTask,
+  onResetProgress 
 }: TaskContentProps) => {
   if (!task || !course) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <div className="text-center">
-          <h2 className="text-2xl font-bold text-gray-600 mb-2">No Tasks Available</h2>
-          <p className="text-gray-500">There are no tasks available at the moment.</p>
-        </div>
+      <div className="flex items-center justify-center h-64">
+        <p className="text-gray-500">No task available</p>
       </div>
     );
   }
 
   const currentTaskIndex = allTasks.findIndex(t => t.id === task.id);
-  const isCompleted = userProgress && currentTaskIndex < userProgress.completed_tasks;
-
-  const getDifficultyColor = (level: string) => {
-    switch (level) {
-      case 'beginner': return 'text-green-600 bg-green-100';
-      case 'intermediate': return 'text-yellow-600 bg-yellow-100';
-      case 'advanced': return 'text-red-600 bg-red-100';
-      default: return 'text-gray-600 bg-gray-100';
-    }
-  };
+  const canMoveToPrevious = currentTaskIndex > 0;
 
   return (
-    <div className="h-full flex flex-col">
-      {/* Course Header */}
-      <div className="mb-6 pb-4 border-b border-gray-200">
-        <div className="flex items-center justify-between mb-2">
-          <h1 className="text-2xl font-bold text-gray-800">{course.title}</h1>
-          <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getDifficultyColor(course.difficulty_level)}`}>
-            {course.difficulty_level}
-          </span>
-        </div>
-        <p className="text-gray-600 text-sm">{course.description}</p>
-        
-        {/* Progress Bar */}
-        {userProgress && (
-          <div className="mt-4">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-sm font-medium text-gray-700">
-                Progress: {userProgress.completed_tasks} / {userProgress.total_tasks} tasks
-              </span>
-              <span className="text-sm text-gray-500">
-                {Math.round(userProgress.completion_percentage)}%
-              </span>
+    <div className="space-y-6">
+      {/* Header with progress and reset button */}
+      <div className="flex justify-between items-start">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">{course.title}</h1>
+          <div className="flex items-center space-x-4">
+            <div className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium">
+              {course.difficulty_level}
             </div>
-            <Progress value={userProgress.completion_percentage} className="h-2" />
+            <div className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-medium">
+              {course.language}
+            </div>
           </div>
-        )}
+        </div>
+        <Button
+          onClick={onResetProgress}
+          variant="outline"
+          size="sm"
+          className="flex items-center space-x-2 text-orange-600 border-orange-300 hover:bg-orange-50"
+        >
+          <RotateCcw className="h-4 w-4" />
+          <span>Reset Progress</span>
+        </Button>
       </div>
 
-      {/* Task Navigation */}
-      <div className="flex items-center justify-between mb-6">
-        <Button 
-          variant="outline" 
-          size="sm"
-          onClick={onPreviousTask}
-          disabled={currentTaskIndex === 0}
-          className="flex items-center gap-2"
-        >
-          <ChevronLeft className="w-4 h-4" />
-          Previous
-        </Button>
-        
-        <div className="flex items-center gap-2">
-          {isCompleted && <CheckCircle className="w-5 h-5 text-green-600" />}
-          <span className="text-sm font-medium text-gray-600">
-            Task {task.order_index} of {allTasks.length}
-          </span>
+      {/* Progress Bar */}
+      {userProgress && (
+        <div className="bg-gray-200 rounded-full h-3 overflow-hidden">
+          <div 
+            className="bg-gradient-to-r from-blue-500 to-purple-600 h-full transition-all duration-300 ease-out"
+            style={{ width: `${userProgress.completion_percentage}%` }}
+          ></div>
+          <p className="text-sm text-gray-600 mt-2">
+            Progress: {userProgress.completed_tasks} / {userProgress.total_tasks} tasks completed 
+            ({userProgress.completion_percentage.toFixed(1)}%)
+          </p>
         </div>
-        
-        <Button 
-          variant="outline" 
-          size="sm"
-          onClick={() => {
-            const nextTask = allTasks[currentTaskIndex + 1];
-            if (nextTask) onNextTask(nextTask.id);
-          }}
-          disabled={!canMoveToNext || currentTaskIndex === allTasks.length - 1}
-          className="flex items-center gap-2"
-        >
-          Next
-          <ChevronRight className="w-4 h-4" />
-        </Button>
-      </div>
+      )}
 
       {/* Task Content */}
-      <div className="flex-grow overflow-y-auto">
-        <div className="mb-6">
-          <div className="flex items-center gap-3 mb-4">
-            <h2 className="text-3xl font-bold text-gray-800">{task.title}</h2>
-            {isCompleted && (
-              <div className="flex items-center gap-1 px-2 py-1 bg-green-100 text-green-700 rounded-full text-xs font-semibold">
-                <Trophy className="w-3 h-3" />
-                Completed
-              </div>
-            )}
-          </div>
-          
-          <div className="flex items-center gap-4 mb-4">
-            <span className={`px-2 py-1 rounded-full text-xs font-semibold ${getDifficultyColor(task.difficulty_level)}`}>
-              {task.difficulty_level}
+      <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
+        <div className="flex justify-between items-start mb-4">
+          <h2 className="text-2xl font-semibold text-gray-900">{task.title}</h2>
+          <div className="flex items-center space-x-2">
+            <span className="bg-gray-100 text-gray-700 px-2 py-1 rounded text-sm">
+              Task {task.order_index}
             </span>
-            <span className="flex items-center gap-1 text-xs text-gray-500">
-              <Clock className="w-3 h-3" />
-              Estimated: 5-10 minutes
+            <span className="bg-yellow-100 text-yellow-800 px-2 py-1 rounded text-sm">
+              {task.difficulty_level}
             </span>
           </div>
         </div>
 
-        <div className="prose prose-lg max-w-none">
-          <div className="mb-6">
-            <h3 className="text-xl font-semibold text-gray-800 mb-3">Description</h3>
+        <div className="space-y-4">
+          <div>
+            <h3 className="text-lg font-medium text-gray-900 mb-2">Description</h3>
             <p className="text-gray-700 leading-relaxed">{task.description}</p>
           </div>
 
-          <div className="bg-blue-50 rounded-lg p-6 border-l-4 border-blue-500">
-            <h3 className="text-xl font-semibold text-blue-800 mb-3">Instructions</h3>
-            <div className="text-blue-700 leading-relaxed whitespace-pre-wrap">
-              {task.instructions}
+          <div>
+            <h3 className="text-lg font-medium text-gray-900 mb-2">Instructions</h3>
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <p className="text-blue-900 leading-relaxed">{task.instructions}</p>
             </div>
           </div>
 
-          {/* Task List Overview */}
-          <div className="mt-8">
-            <h3 className="text-lg font-semibold text-gray-800 mb-4">All Tasks in This Course</h3>
-            <div className="space-y-2">
-              {allTasks.map((t, index) => {
-                const taskCompleted = userProgress && index < userProgress.completed_tasks;
-                const isCurrent = t.id === task.id;
-                
-                return (
-                  <div 
-                    key={t.id}
-                    className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
-                      isCurrent 
-                        ? 'bg-blue-100 border-blue-300' 
-                        : taskCompleted 
-                          ? 'bg-green-50 border-green-200 hover:bg-green-100' 
-                          : 'bg-gray-50 border-gray-200 hover:bg-gray-100'
-                    }`}
-                    onClick={() => onNextTask(t.id)}
-                  >
-                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
-                      taskCompleted 
-                        ? 'bg-green-600 text-white' 
-                        : isCurrent 
-                          ? 'bg-blue-600 text-white'
-                          : 'bg-gray-300 text-gray-600'
-                    }`}>
-                      {taskCompleted ? '✓' : t.order_index}
-                    </div>
-                    <span className={`font-medium ${
-                      isCurrent ? 'text-blue-800' : taskCompleted ? 'text-green-800' : 'text-gray-700'
-                    }`}>
-                      {t.title}
-                    </span>
-                    {isCurrent && (
-                      <span className="ml-auto text-xs bg-blue-600 text-white px-2 py-1 rounded">
-                        Current
-                      </span>
-                    )}
-                  </div>
-                );
-              })}
+          {task.expected_output && (
+            <div>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">Expected Output</h3>
+              <div className="bg-gray-100 border border-gray-300 rounded-lg p-4 font-mono text-sm">
+                <pre className="whitespace-pre-wrap text-gray-800">{task.expected_output}</pre>
+              </div>
             </div>
-          </div>
+          )}
+
+          {task.tags && task.tags.length > 0 && (
+            <div>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">Tags</h3>
+              <div className="flex flex-wrap gap-2">
+                {task.tags.map((tag, index) => (
+                  <span key={index} className="bg-purple-100 text-purple-800 px-2 py-1 rounded text-sm">
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
+      </div>
+
+      {/* Navigation */}
+      <div className="flex justify-between items-center pt-4 border-t border-gray-200">
+        <Button
+          onClick={onPreviousTask}
+          disabled={!canMoveToPrevious}
+          variant="outline"
+          className="flex items-center space-x-2"
+        >
+          <ChevronLeft className="h-4 w-4" />
+          <span>Previous Task</span>
+        </Button>
+
+        <div className="text-sm text-gray-500">
+          Task {currentTaskIndex + 1} of {allTasks.length}
+        </div>
+
+        <Button
+          onClick={() => {
+            const nextTaskIndex = currentTaskIndex + 1;
+            if (nextTaskIndex < allTasks.length) {
+              onNextTask(allTasks[nextTaskIndex].id);
+            }
+          }}
+          disabled={!canMoveToNext || currentTaskIndex >= allTasks.length - 1}
+          variant="outline"
+          className="flex items-center space-x-2"
+        >
+          <span>Next Task</span>
+          <ChevronRight className="h-4 w-4" />
+        </Button>
       </div>
     </div>
   );
