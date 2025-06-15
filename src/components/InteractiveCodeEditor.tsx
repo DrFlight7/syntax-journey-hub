@@ -65,7 +65,7 @@ const InteractiveCodeEditor = ({ initialCode }: InteractiveCodeEditorProps) => {
     <div className="flex flex-col h-full relative">
       {/* Editor Header */}
       <div className="flex items-center justify-between mb-4 p-4 bg-gray-800 rounded-lg border border-gray-700">
-        <h2 className="text-xl font-semibold text-white">Code Editor</h2>
+        <h2 className="text-xl font-semibold text-white">Coode Editor</h2>
         
         <div className="flex items-center space-x-3">
           {/* Language Selector */}
