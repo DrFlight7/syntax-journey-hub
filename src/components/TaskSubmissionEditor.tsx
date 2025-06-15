@@ -99,9 +99,37 @@ const TaskSubmissionEditor = ({ task, language, onSubmit }: TaskSubmissionEditor
               const printContent = printMatch[1];
               let outputLine = '';
               
-              // Parse print arguments
-              const args = printContent.split(',').map(arg => arg.trim());
+              // Split by comma but be careful with quoted strings
+              const args: string[] = [];
+              let currentArg = '';
+              let inQuotes = false;
+              let quoteChar = '';
               
+              for (let i = 0; i < printContent.length; i++) {
+                const char = printContent[i];
+                
+                if ((char === '"' || char === "'") && !inQuotes) {
+                  inQuotes = true;
+                  quoteChar = char;
+                  currentArg += char;
+                } else if (char === quoteChar && inQuotes) {
+                  inQuotes = false;
+                  quoteChar = '';
+                  currentArg += char;
+                } else if (char === ',' && !inQuotes) {
+                  args.push(currentArg.trim());
+                  currentArg = '';
+                } else {
+                  currentArg += char;
+                }
+              }
+              
+              // Add the last argument
+              if (currentArg.trim()) {
+                args.push(currentArg.trim());
+              }
+              
+              // Process each argument
               for (let i = 0; i < args.length; i++) {
                 const arg = args[i];
                 
