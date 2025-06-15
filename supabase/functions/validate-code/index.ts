@@ -78,9 +78,9 @@ serve(async (req) => {
         const changedAge = !codeToCheck.includes('age = 0') && !codeToCheck.includes('age=0')
         const changedColor = !codeToCheck.includes('"blue"') && !codeToCheck.includes("'blue'")
         
-        // FIXED: More precise spacing detection - check for the exact wrong pattern
-        const hasIncorrectSpacing = codeToCheck.includes('hello , my name is') || codeToCheck.includes('hello ,my name is')
-        const hasCorrectHelloFormat = (codeToCheck.includes('hello, my name is') && !hasIncorrectSpacing)
+        // CRITICAL FIX: Check for the specific spacing error pattern
+        // Look for the exact problematic pattern: "hello ," (with space before comma)
+        const hasSpaceBeforeComma = codeToCheck.includes('hello ,') || codeToCheck.includes('"hello ,') || codeToCheck.includes("'hello ,")
         
         console.log(`[VALIDATE-CODE] Validation checks:`)
         console.log(`- hasName: ${hasName}`)
@@ -90,14 +90,18 @@ serve(async (req) => {
         console.log(`- changedName: ${changedName}`)
         console.log(`- changedAge: ${changedAge}`)
         console.log(`- changedColor: ${changedColor}`)
-        console.log(`- hasCorrectHelloFormat: ${hasCorrectHelloFormat}`)
-        console.log(`- hasIncorrectSpacing: ${hasIncorrectSpacing}`)
-        console.log(`- Code contains "hello , my name is": ${codeToCheck.includes('hello , my name is')}`)
+        console.log(`- hasSpaceBeforeComma: ${hasSpaceBeforeComma}`)
+        console.log(`- Code contains "hello ,": ${codeToCheck.includes('hello ,')}`)
+        console.log(`- Raw code search: ${code.includes('Hello ,')}`)
         
-        if (hasIncorrectSpacing) {
+        // If there's a space before the comma, it's an error
+        if (hasSpaceBeforeComma) {
           isCorrect = false
-          executionOutput = 'Format error: Extra space detected in "Hello , my name is". It should be "Hello, my name is" (no space after "Hello").'
+          executionOutput = 'Spacing error: There should be no space before the comma in "Hello, my name is". It should be "Hello, my name is" not "Hello , my name is".'
         } else {
+          // Check if the format is correct (has "hello, my name is" without the spacing error)
+          const hasCorrectHelloFormat = codeToCheck.includes('hello, my name is')
+          
           isCorrect = hasName && hasAge && hasColor && hasPrint && changedName && changedAge && changedColor && hasCorrectHelloFormat
           
           if (isCorrect) {
