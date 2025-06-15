@@ -67,7 +67,7 @@ serve(async (req) => {
       if (expectedOutput && expectedOutput.includes('Hello, my name is')) {
         console.log(`[VALIDATE-CODE] Validating introduction task`)
         
-        // Very strict validation for introduction task
+        // Very strict validation for introduction task - check exact format
         const hasName = codeToCheck.includes('name') && codeToCheck.includes('=') && !codeToCheck.includes('name = "your name"')
         const hasAge = codeToCheck.includes('age') && codeToCheck.includes('=') && !codeToCheck.includes('age = 0')
         const hasColor = (codeToCheck.includes('favorite_color') || codeToCheck.includes('color')) && codeToCheck.includes('=') && !codeToCheck.includes('favorite_color = "blue"')
@@ -78,6 +78,10 @@ serve(async (req) => {
         const changedAge = !codeToCheck.includes('age = 0') && !codeToCheck.includes('age=0')
         const changedColor = !codeToCheck.includes('"blue"') && !codeToCheck.includes("'blue'")
         
+        // NEW: Check for exact format in the first print statement
+        const hasCorrectHelloFormat = codeToCheck.includes('print("hello, my name is"') || codeToCheck.includes("print('hello, my name is'")
+        const hasIncorrectSpacing = codeToCheck.includes('print("hello , my name is"') || codeToCheck.includes("print('hello , my name is'")
+        
         console.log(`[VALIDATE-CODE] Validation checks:`)
         console.log(`- hasName: ${hasName}`)
         console.log(`- hasAge: ${hasAge}`)
@@ -86,22 +90,30 @@ serve(async (req) => {
         console.log(`- changedName: ${changedName}`)
         console.log(`- changedAge: ${changedAge}`)
         console.log(`- changedColor: ${changedColor}`)
+        console.log(`- hasCorrectHelloFormat: ${hasCorrectHelloFormat}`)
+        console.log(`- hasIncorrectSpacing: ${hasIncorrectSpacing}`)
         
-        isCorrect = hasName && hasAge && hasColor && hasPrint && changedName && changedAge && changedColor
-        
-        if (isCorrect) {
-          executionOutput = expectedOutput
+        if (hasIncorrectSpacing) {
+          isCorrect = false
+          executionOutput = 'Format error: Extra space detected in "Hello , my name is". It should be "Hello, my name is" (no space after "Hello").'
         } else {
-          let missing = []
-          if (!hasName) missing.push('name variable')
-          if (!hasAge) missing.push('age variable')
-          if (!hasColor) missing.push('favorite_color variable')
-          if (!hasPrint) missing.push('print statement with name and age')
-          if (!changedName) missing.push('change the name from default "Your Name"')
-          if (!changedAge) missing.push('change the age from default 0')
-          if (!changedColor) missing.push('change the color from default "blue"')
+          isCorrect = hasName && hasAge && hasColor && hasPrint && changedName && changedAge && changedColor && hasCorrectHelloFormat
           
-          executionOutput = `Code validation failed. Issues found: ${missing.join(', ')}`
+          if (isCorrect) {
+            executionOutput = expectedOutput
+          } else {
+            let missing = []
+            if (!hasName) missing.push('name variable')
+            if (!hasAge) missing.push('age variable')
+            if (!hasColor) missing.push('favorite_color variable')
+            if (!hasPrint) missing.push('print statement with name and age')
+            if (!changedName) missing.push('change the name from default "Your Name"')
+            if (!changedAge) missing.push('change the age from default 0')
+            if (!changedColor) missing.push('change the color from default "blue"')
+            if (!hasCorrectHelloFormat) missing.push('correct format for "Hello, my name is"')
+            
+            executionOutput = `Code validation failed. Issues found: ${missing.join(', ')}`
+          }
         }
       } else if (expectedOutput && expectedOutput.includes('Hello, World!')) {
         console.log(`[VALIDATE-CODE] Validating Hello World task`)
