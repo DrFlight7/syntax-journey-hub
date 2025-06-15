@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -166,7 +167,6 @@ export const useTaskManager = () => {
           current_task_id: firstTask.id,
           completed_tasks: 0,
           completion_percentage: 0,
-          completed_at: null,
           last_activity_at: new Date().toISOString()
         })
         .eq('user_id', user.id)
@@ -181,8 +181,7 @@ export const useTaskManager = () => {
           ...userProgress,
           current_task_id: firstTask.id,
           completed_tasks: 0,
-          completion_percentage: 0,
-          completed_at: null
+          completion_percentage: 0
         });
       }
 
