@@ -78,9 +78,9 @@ serve(async (req) => {
         const changedAge = !codeToCheck.includes('age = 0') && !codeToCheck.includes('age=0')
         const changedColor = !codeToCheck.includes('"blue"') && !codeToCheck.includes("'blue'")
         
-        // NEW: Check for exact format in the first print statement
-        const hasCorrectHelloFormat = codeToCheck.includes('print("hello, my name is"') || codeToCheck.includes("print('hello, my name is'")
-        const hasIncorrectSpacing = codeToCheck.includes('print("hello , my name is"') || codeToCheck.includes("print('hello , my name is'")
+        // FIXED: More precise spacing detection - check for the exact wrong pattern
+        const hasIncorrectSpacing = codeToCheck.includes('hello , my name is') || codeToCheck.includes('hello ,my name is')
+        const hasCorrectHelloFormat = (codeToCheck.includes('hello, my name is') && !hasIncorrectSpacing)
         
         console.log(`[VALIDATE-CODE] Validation checks:`)
         console.log(`- hasName: ${hasName}`)
@@ -92,6 +92,7 @@ serve(async (req) => {
         console.log(`- changedColor: ${changedColor}`)
         console.log(`- hasCorrectHelloFormat: ${hasCorrectHelloFormat}`)
         console.log(`- hasIncorrectSpacing: ${hasIncorrectSpacing}`)
+        console.log(`- Code contains "hello , my name is": ${codeToCheck.includes('hello , my name is')}`)
         
         if (hasIncorrectSpacing) {
           isCorrect = false
