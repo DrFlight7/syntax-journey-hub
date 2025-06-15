@@ -19,7 +19,7 @@ serve(async (req) => {
     console.log(`[VALIDATE-CODE] Starting validation for task ${taskId}`)
     console.log(`[VALIDATE-CODE] Language: ${language}`)
     console.log(`[VALIDATE-CODE] Code length: ${code?.length || 0}`)
-    console.log(`[VALIDATE-CODE] Code content: ${code}`)
+    console.log(`[VALIDATE-CODE] Raw code content:`, JSON.stringify(code))
 
     if (!code || !taskId) {
       console.log(`[VALIDATE-CODE] Missing required parameters - code: ${!!code}, taskId: ${!!taskId}`)
@@ -53,26 +53,41 @@ serve(async (req) => {
     console.log(`[VALIDATE-CODE] Task found: ${task.title}`)
     console.log(`[VALIDATE-CODE] Expected output: ${task.expected_output}`)
 
-    // Enhanced validation logic
+    // Enhanced validation logic with much stricter checking
     let isCorrect = false
     let executionOutput = ''
     let validationResults = {}
 
     if (language === 'python') {
       const expectedOutput = task.expected_output
+      const codeToCheck = code.toLowerCase().trim()
+      
+      console.log(`[VALIDATE-CODE] Code to check (normalized): ${codeToCheck}`)
       
       if (expectedOutput && expectedOutput.includes('Hello, my name is')) {
         console.log(`[VALIDATE-CODE] Validating introduction task`)
-        // Check for proper code structure for the introduction task
-        const codeLines = code.toLowerCase()
-        const hasName = codeLines.includes('name') && codeLines.includes('=')
-        const hasAge = codeLines.includes('age') && codeLines.includes('=')
-        const hasColor = codeLines.includes('favorite_color') || codeLines.includes('color')
-        const hasPrint = codeLines.includes('print') && codeLines.includes('name') && codeLines.includes('age')
         
-        console.log(`[VALIDATE-CODE] Validation checks - name: ${hasName}, age: ${hasAge}, color: ${hasColor}, print: ${hasPrint}`)
+        // Very strict validation for introduction task
+        const hasName = codeToCheck.includes('name') && codeToCheck.includes('=') && !codeToCheck.includes('name = "your name"')
+        const hasAge = codeToCheck.includes('age') && codeToCheck.includes('=') && !codeToCheck.includes('age = 0')
+        const hasColor = (codeToCheck.includes('favorite_color') || codeToCheck.includes('color')) && codeToCheck.includes('=') && !codeToCheck.includes('favorite_color = "blue"')
+        const hasPrint = codeToCheck.includes('print') && codeToCheck.includes('name') && codeToCheck.includes('age')
         
-        isCorrect = hasName && hasAge && hasColor && hasPrint
+        // Check if they actually changed the default values
+        const changedName = !codeToCheck.includes('"your name"') && !codeToCheck.includes("'your name'")
+        const changedAge = !codeToCheck.includes('age = 0') && !codeToCheck.includes('age=0')
+        const changedColor = !codeToCheck.includes('"blue"') && !codeToCheck.includes("'blue'")
+        
+        console.log(`[VALIDATE-CODE] Validation checks:`)
+        console.log(`- hasName: ${hasName}`)
+        console.log(`- hasAge: ${hasAge}`)
+        console.log(`- hasColor: ${hasColor}`)
+        console.log(`- hasPrint: ${hasPrint}`)
+        console.log(`- changedName: ${changedName}`)
+        console.log(`- changedAge: ${changedAge}`)
+        console.log(`- changedColor: ${changedColor}`)
+        
+        isCorrect = hasName && hasAge && hasColor && hasPrint && changedName && changedAge && changedColor
         
         if (isCorrect) {
           executionOutput = expectedOutput
@@ -82,69 +97,82 @@ serve(async (req) => {
           if (!hasAge) missing.push('age variable')
           if (!hasColor) missing.push('favorite_color variable')
           if (!hasPrint) missing.push('print statement with name and age')
+          if (!changedName) missing.push('change the name from default "Your Name"')
+          if (!changedAge) missing.push('change the age from default 0')
+          if (!changedColor) missing.push('change the color from default "blue"')
           
-          executionOutput = `Code validation failed. Missing: ${missing.join(', ')}`
+          executionOutput = `Code validation failed. Issues found: ${missing.join(', ')}`
         }
       } else if (expectedOutput && expectedOutput.includes('Hello, World!')) {
         console.log(`[VALIDATE-CODE] Validating Hello World task`)
-        // Simple Hello World task
-        const normalizedCode = code.toLowerCase().replace(/\s+/g, ' ').trim()
-        isCorrect = normalizedCode.includes('print') && 
-                   (normalizedCode.includes('"hello, world!"') || normalizedCode.includes("'hello, world!'"))
         
-        console.log(`[VALIDATE-CODE] Hello World check - hasprint: ${normalizedCode.includes('print')}, hastext: ${normalizedCode.includes('"hello, world!"') || normalizedCode.includes("'hello, world!'")}, normalized: ${normalizedCode}`)
+        // Very strict Hello World validation
+        const hasExactPrint = codeToCheck.includes('print("hello, world!")') || codeToCheck.includes("print('hello, world!')")
+        
+        console.log(`[VALIDATE-CODE] Hello World check - hasExactPrint: ${hasExactPrint}`)
+        
+        isCorrect = hasExactPrint
         
         if (isCorrect) {
           executionOutput = 'Hello, World!'
         } else {
-          executionOutput = 'Expected: print("Hello, World!") or print(\'Hello, World!\')'
+          executionOutput = 'Expected exactly: print("Hello, World!") or print(\'Hello, World!\'). Make sure the capitalization and punctuation match exactly.'
         }
       } else {
         console.log(`[VALIDATE-CODE] Validating generic task`)
-        // For other tasks, be more strict - check if the code actually produces the expected output
-        const hasValidSyntax = !code.includes('SyntaxError') && 
-                              !code.includes('IndentationError') &&
-                              code.trim().length > 5
+        
+        // For tasks without specific expected output, be very strict
+        const minCodeLength = 30 // Require substantial code
+        const hasPrint = codeToCheck.includes('print(')
+        const hasValidStructure = codeToCheck.split('\n').length >= 3 // At least 3 lines
+        
+        console.log(`[VALIDATE-CODE] Generic validation:`)
+        console.log(`- Code length: ${code.length} (min: ${minCodeLength})`)
+        console.log(`- Has print: ${hasPrint}`)
+        console.log(`- Has valid structure: ${hasValidStructure}`)
         
         if (expectedOutput) {
-          // If there's an expected output, the code must be very specific
+          // If there's expected output but it's not a known pattern, be very strict
           isCorrect = false
-          executionOutput = `This task requires specific output. Your code doesn't match the expected result: "${expectedOutput}"`
-        } else if (hasValidSyntax && code.includes('print')) {
-          // Only pass if there's a print statement and basic syntax is ok
-          isCorrect = true
-          executionOutput = 'Code executed successfully!'
+          executionOutput = `This task requires specific output. Your code doesn't produce the expected result: "${expectedOutput}"`
         } else {
-          isCorrect = false
-          executionOutput = 'Code appears to have issues or missing print statement'
+          isCorrect = code.length >= minCodeLength && hasPrint && hasValidStructure
+          executionOutput = isCorrect ? 'Code validation passed' : `Code must be at least ${minCodeLength} characters, include print statements, and have proper structure`
         }
       }
 
       validationResults = {
         testsPassed: isCorrect ? 1 : 0,
         totalTests: 1,
-        details: isCorrect ? 'All tests passed!' : executionOutput
+        details: isCorrect ? 'All validation checks passed!' : executionOutput
       }
     } else {
       console.log(`[VALIDATE-CODE] Validating non-Python language: ${language}`)
-      // Default handling for other languages - be strict
-      isCorrect = code.trim().length > 20 && code.includes('print') // More strict requirements
-      executionOutput = isCorrect ? 'Code validation passed' : 'Code too short or missing required elements'
+      // Very strict for other languages
+      isCorrect = false
+      executionOutput = 'Only Python code validation is currently supported'
       validationResults = {
-        testsPassed: isCorrect ? 1 : 0,
+        testsPassed: 0,
         totalTests: 1,
         details: executionOutput
       }
     }
 
-    console.log(`[VALIDATE-CODE] Final result - isCorrect: ${isCorrect}, output: ${executionOutput}`)
+    console.log(`[VALIDATE-CODE] FINAL VALIDATION RESULT:`)
+    console.log(`- isCorrect: ${isCorrect}`)
+    console.log(`- executionOutput: ${executionOutput}`)
+    console.log(`- validationResults:`, JSON.stringify(validationResults))
+
+    const response = {
+      isCorrect,
+      executionOutput,
+      validationResults
+    }
+
+    console.log(`[VALIDATE-CODE] Returning response:`, JSON.stringify(response))
 
     return new Response(
-      JSON.stringify({
-        isCorrect,
-        executionOutput,
-        validationResults
-      }),
+      JSON.stringify(response),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
 

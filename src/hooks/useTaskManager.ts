@@ -206,6 +206,10 @@ export const useTaskManager = () => {
     if (!currentTask || !user || !userProgress) return false;
 
     try {
+      console.log('[SUBMIT-TASK] Submitting code:', code);
+      console.log('[SUBMIT-TASK] Task ID:', currentTask.id);
+      console.log('[SUBMIT-TASK] Language:', currentCourse?.language || 'python');
+
       // Call the validate-code edge function
       const { data: validationResult, error: validationError } = await supabase.functions.invoke('validate-code', {
         body: {
@@ -214,6 +218,9 @@ export const useTaskManager = () => {
           language: currentCourse?.language || 'python'
         }
       });
+
+      console.log('[SUBMIT-TASK] Validation result:', validationResult);
+      console.log('[SUBMIT-TASK] Validation error:', validationError);
 
       if (validationError) throw validationError;
 
@@ -231,6 +238,9 @@ export const useTaskManager = () => {
         : 1;
 
       const isCorrect = validationResult?.isCorrect || false;
+
+      console.log('[SUBMIT-TASK] Is correct:', isCorrect);
+      console.log('[SUBMIT-TASK] Execution output:', validationResult?.executionOutput);
 
       // Save submission
       const { error: submissionError } = await supabase
