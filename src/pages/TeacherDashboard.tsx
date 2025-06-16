@@ -4,9 +4,10 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Plus, BookOpen, Users, BarChart3 } from 'lucide-react';
+import { Plus, BookOpen, Users, BarChart3, Settings } from 'lucide-react';
 import RoleGuard from '@/components/RoleGuard';
 import UserProfile from '@/components/UserProfile';
+import TaskManagementModal from '@/components/TaskManagementModal';
 
 interface Course {
   id: string;
@@ -21,6 +22,8 @@ const TeacherDashboard = () => {
   const { user } = useAuth();
   const [courses, setCourses] = useState<Course[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
+  const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
 
   useEffect(() => {
     fetchCourses();
@@ -72,6 +75,16 @@ const TeacherDashboard = () => {
     } catch (error) {
       console.error('Error creating course:', error);
     }
+  };
+
+  const handleManageTasks = (course: Course) => {
+    setSelectedCourse(course);
+    setIsTaskModalOpen(true);
+  };
+
+  const closeTaskModal = () => {
+    setIsTaskModalOpen(false);
+    setSelectedCourse(null);
   };
 
   return (
@@ -184,9 +197,17 @@ const TeacherDashboard = () => {
                         <span className="text-sm text-gray-500 capitalize">
                           {course.language}
                         </span>
-                        <Button variant="outline" size="sm">
-                          Manage
-                        </Button>
+                        <div className="flex gap-2">
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => handleManageTasks(course)}
+                            className="flex items-center gap-1"
+                          >
+                            <Settings className="h-3 w-3" />
+                            Manage Tasks
+                          </Button>
+                        </div>
                       </div>
                     </CardContent>
                   </Card>
@@ -195,6 +216,13 @@ const TeacherDashboard = () => {
             )}
           </div>
         </main>
+
+        {/* Task Management Modal */}
+        <TaskManagementModal
+          course={selectedCourse}
+          isOpen={isTaskModalOpen}
+          onClose={closeTaskModal}
+        />
       </div>
     </RoleGuard>
   );
