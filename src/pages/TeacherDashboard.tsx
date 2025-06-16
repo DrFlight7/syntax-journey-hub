@@ -3,27 +3,36 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Plus, BookOpen, Users, BarChart3, Settings } from 'lucide-react';
+import { Card, CardContent } from '@/components/ui/card';
+import { Plus, BookOpen, Users, BarChart3 } from 'lucide-react';
 import RoleGuard from '@/components/RoleGuard';
 import UserProfile from '@/components/UserProfile';
 import TaskManagementModal from '@/components/TaskManagementModal';
+import CourseManagementModal from '@/components/CourseManagementModal';
+import CourseCard from '@/components/CourseCard';
+import { useToast } from '@/hooks/use-toast';
 
 interface Course {
   id: string;
   title: string;
   description: string;
   language: string;
+  difficulty_level?: string;
   is_published: boolean;
   created_at: string;
 }
 
 const TeacherDashboard = () => {
   const { user } = useAuth();
+  const { toast } = useToast();
   const [courses, setCourses] = useState<Course[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
+  const [isCourseModalOpen, setIsCourseModalOpen] = useState(false);
+  const [editingCourse, setEditingCourse] = useState<Course | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [deletingCourseId, setDeletingCourseId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchCourses();
@@ -41,39 +50,125 @@ const TeacherDashboard = () => {
 
       if (error) {
         console.error('Error fetching courses:', error);
+        toast({
+          title: 'Error',
+          description: 'Failed to fetch courses',
+          variant: 'destructive',
+        });
       } else {
         setCourses(data || []);
       }
     } catch (error) {
       console.error('Error fetching courses:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to fetch courses',
+        variant: 'destructive',
+      });
     } finally {
       setLoading(false);
     }
   };
 
-  const createNewCourse = async () => {
+  const handleCreateCourse = () => {
+    setEditingCourse(null);
+    setIsCourseModalOpen(true);
+  };
+
+  const handleEditCourse = (course: Course) => {
+    setEditingCourse(course);
+    setIsCourseModalOpen(true);
+  };
+
+  const handleSubmitCourse = async (data: any) => {
     if (!user) return;
 
+    setIsSubmitting(true);
     try {
-      const { data, error } = await supabase
-        .from('courses')
-        .insert({
-          title: 'New Course',
-          description: 'Course description',
-          language: 'python',
-          created_by: user.id,
-          is_published: false
-        })
-        .select()
-        .single();
+      if (editingCourse) {
+        // Update existing course
+        const { error } = await supabase
+          .from('courses')
+          .update({
+            ...data,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', editingCourse.id);
 
-      if (error) {
-        console.error('Error creating course:', error);
+        if (error) throw error;
+
+        setCourses(prev => 
+          prev.map(course => 
+            course.id === editingCourse.id 
+              ? { ...course, ...data }
+              : course
+          )
+        );
+
+        toast({
+          title: 'Success',
+          description: 'Course updated successfully',
+        });
       } else {
-        setCourses(prev => [data, ...prev]);
+        // Create new course
+        const { data: newCourse, error } = await supabase
+          .from('courses')
+          .insert({
+            ...data,
+            created_by: user.id,
+          })
+          .select()
+          .single();
+
+        if (error) throw error;
+
+        setCourses(prev => [newCourse, ...prev]);
+
+        toast({
+          title: 'Success',
+          description: 'Course created successfully',
+        });
       }
+
+      setIsCourseModalOpen(false);
+      setEditingCourse(null);
     } catch (error) {
-      console.error('Error creating course:', error);
+      console.error('Error saving course:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to save course',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDeleteCourse = async (courseId: string) => {
+    setDeletingCourseId(courseId);
+    try {
+      const { error } = await supabase
+        .from('courses')
+        .delete()
+        .eq('id', courseId);
+
+      if (error) throw error;
+
+      setCourses(prev => prev.filter(course => course.id !== courseId));
+
+      toast({
+        title: 'Success',
+        description: 'Course deleted successfully',
+      });
+    } catch (error) {
+      console.error('Error deleting course:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to delete course',
+        variant: 'destructive',
+      });
+    } finally {
+      setDeletingCourseId(null);
     }
   };
 
@@ -85,6 +180,11 @@ const TeacherDashboard = () => {
   const closeTaskModal = () => {
     setIsTaskModalOpen(false);
     setSelectedCourse(null);
+  };
+
+  const closeCourseModal = () => {
+    setIsCourseModalOpen(false);
+    setEditingCourse(null);
   };
 
   return (
@@ -110,37 +210,37 @@ const TeacherDashboard = () => {
           {/* Stats Cards */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
             <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Total Courses</CardTitle>
+              <CardContent className="flex flex-row items-center justify-between space-y-0 p-6">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Total Courses</p>
+                  <div className="text-2xl font-bold">{courses.length}</div>
+                  <p className="text-xs text-muted-foreground">
+                    {courses.filter(c => c.is_published).length} published
+                  </p>
+                </div>
                 <BookOpen className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{courses.length}</div>
-                <p className="text-xs text-muted-foreground">
-                  {courses.filter(c => c.is_published).length} published
-                </p>
               </CardContent>
             </Card>
 
             <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Active Students</CardTitle>
+              <CardContent className="flex flex-row items-center justify-between space-y-0 p-6">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Active Students</p>
+                  <div className="text-2xl font-bold">0</div>
+                  <p className="text-xs text-muted-foreground">Enrolled in your courses</p>
+                </div>
                 <Users className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">0</div>
-                <p className="text-xs text-muted-foreground">Enrolled in your courses</p>
               </CardContent>
             </Card>
 
             <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Completion Rate</CardTitle>
+              <CardContent className="flex flex-row items-center justify-between space-y-0 p-6">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Completion Rate</p>
+                  <div className="text-2xl font-bold">0%</div>
+                  <p className="text-xs text-muted-foreground">Average across all courses</p>
+                </div>
                 <BarChart3 className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">0%</div>
-                <p className="text-xs text-muted-foreground">Average across all courses</p>
               </CardContent>
             </Card>
           </div>
@@ -149,7 +249,7 @@ const TeacherDashboard = () => {
           <div className="mb-8">
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-2xl font-bold text-gray-800">My Courses</h2>
-              <Button onClick={createNewCourse} className="flex items-center gap-2">
+              <Button onClick={handleCreateCourse} className="flex items-center gap-2">
                 <Plus className="h-4 w-4" />
                 Create New Course
               </Button>
@@ -167,7 +267,7 @@ const TeacherDashboard = () => {
                   <p className="text-gray-500 text-center mb-4">
                     Create your first course to start teaching students
                   </p>
-                  <Button onClick={createNewCourse} className="flex items-center gap-2">
+                  <Button onClick={handleCreateCourse} className="flex items-center gap-2">
                     <Plus className="h-4 w-4" />
                     Create Your First Course
                   </Button>
@@ -176,41 +276,14 @@ const TeacherDashboard = () => {
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {courses.map((course) => (
-                  <Card key={course.id} className="hover:shadow-lg transition-shadow">
-                    <CardHeader>
-                      <div className="flex justify-between items-start">
-                        <CardTitle className="text-lg">{course.title}</CardTitle>
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                          course.is_published 
-                            ? 'bg-green-100 text-green-800' 
-                            : 'bg-yellow-100 text-yellow-800'
-                        }`}>
-                          {course.is_published ? 'Published' : 'Draft'}
-                        </span>
-                      </div>
-                      <CardDescription className="line-clamp-2">
-                        {course.description}
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm text-gray-500 capitalize">
-                          {course.language}
-                        </span>
-                        <div className="flex gap-2">
-                          <Button 
-                            variant="outline" 
-                            size="sm"
-                            onClick={() => handleManageTasks(course)}
-                            className="flex items-center gap-1"
-                          >
-                            <Settings className="h-3 w-3" />
-                            Manage Tasks
-                          </Button>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
+                  <CourseCard
+                    key={course.id}
+                    course={course}
+                    onEdit={handleEditCourse}
+                    onDelete={handleDeleteCourse}
+                    onManageTasks={handleManageTasks}
+                    isDeleting={deletingCourseId === course.id}
+                  />
                 ))}
               </div>
             )}
@@ -222,6 +295,15 @@ const TeacherDashboard = () => {
           course={selectedCourse}
           isOpen={isTaskModalOpen}
           onClose={closeTaskModal}
+        />
+
+        {/* Course Management Modal */}
+        <CourseManagementModal
+          course={editingCourse}
+          isOpen={isCourseModalOpen}
+          onClose={closeCourseModal}
+          onSubmit={handleSubmitCourse}
+          isLoading={isSubmitting}
         />
       </div>
     </RoleGuard>
