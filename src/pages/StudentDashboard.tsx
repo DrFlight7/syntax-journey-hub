@@ -1,11 +1,11 @@
-
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { Trophy, Target, Clock, Award } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Trophy, Target, Clock, Award, BookOpen, Play, Users } from 'lucide-react';
 import RoleGuard from '@/components/RoleGuard';
 import UserProfile from '@/components/UserProfile';
 
@@ -25,11 +25,23 @@ interface UserProgress {
   current_task_id: string;
 }
 
+interface Course {
+  id: string;
+  title: string;
+  description: string;
+  language: string;
+  difficulty_level?: string;
+  is_published: boolean;
+  created_at: string;
+  task_count?: number;
+}
+
 const StudentDashboard = () => {
   const { user } = useAuth();
   const [achievements, setAchievements] = useState<Achievement[]>([]);
   const [userAchievements, setUserAchievements] = useState<Achievement[]>([]);
   const [progress, setProgress] = useState<UserProgress | null>(null);
+  const [courses, setCourses] = useState<Course[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -42,6 +54,26 @@ const StudentDashboard = () => {
     if (!user) return;
 
     try {
+      // Fetch published courses
+      const { data: coursesData, error: coursesError } = await supabase
+        .from('courses')
+        .select(`
+          *,
+          tasks (count)
+        `)
+        .eq('is_published', true)
+        .order('created_at', { ascending: false });
+
+      if (coursesError) {
+        console.error('Error fetching courses:', coursesError);
+      } else {
+        const coursesWithTaskCount = coursesData?.map(course => ({
+          ...course,
+          task_count: course.tasks?.[0]?.count || 0
+        })) || [];
+        setCourses(coursesWithTaskCount);
+      }
+
       // Fetch all achievements
       const { data: allAchievements, error: achievementsError } = await supabase
         .from('achievements')
@@ -92,6 +124,50 @@ const StudentDashboard = () => {
       console.error('Error fetching data:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleStartCourse = async (courseId: string) => {
+    if (!user) return;
+
+    try {
+      // Check if user already has progress for this course
+      const { data: existingProgress } = await supabase
+        .from('user_progress')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('course_id', courseId)
+        .maybeSingle();
+
+      if (!existingProgress) {
+        // Get the first task of the course
+        const { data: firstTask } = await supabase
+          .from('tasks')
+          .select('id')
+          .eq('course_id', courseId)
+          .order('order_index')
+          .limit(1)
+          .maybeSingle();
+
+        if (firstTask) {
+          // Create initial progress
+          await supabase
+            .from('user_progress')
+            .insert({
+              user_id: user.id,
+              course_id: courseId,
+              current_task_id: firstTask.id,
+              total_tasks: courses.find(c => c.id === courseId)?.task_count || 0,
+              completed_tasks: 0,
+              completion_percentage: 0
+            });
+        }
+      }
+
+      // Navigate to the learning interface (you can implement this route)
+      window.location.href = `/student/course/${courseId}`;
+    } catch (error) {
+      console.error('Error starting course:', error);
     }
   };
 
@@ -173,6 +249,64 @@ const StudentDashboard = () => {
                     <p className="text-xs text-muted-foreground">Achievement points earned</p>
                   </CardContent>
                 </Card>
+              </div>
+
+              {/* Available Courses Section */}
+              <div className="mb-8">
+                <h2 className="text-2xl font-bold text-gray-800 mb-6">Available Courses</h2>
+                
+                {courses.length === 0 ? (
+                  <Card>
+                    <CardContent className="flex flex-col items-center justify-center py-12">
+                      <BookOpen className="h-12 w-12 text-gray-400 mb-4" />
+                      <h3 className="text-lg font-medium text-gray-600 mb-2">No courses available</h3>
+                      <p className="text-gray-500 text-center">
+                        Check back later for new courses from your teachers
+                      </p>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {courses.map((course) => (
+                      <Card key={course.id} className="hover:shadow-lg transition-shadow">
+                        <CardHeader>
+                          <div className="flex justify-between items-start">
+                            <CardTitle className="text-lg">{course.title}</CardTitle>
+                            <Badge variant="secondary" className="capitalize">
+                              {course.language}
+                            </Badge>
+                          </div>
+                          <CardDescription className="line-clamp-2">
+                            {course.description}
+                          </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="flex justify-between items-center mb-4">
+                            <div className="flex items-center gap-4">
+                              {course.difficulty_level && (
+                                <span className="text-sm text-gray-500 capitalize">
+                                  {course.difficulty_level}
+                                </span>
+                              )}
+                              <div className="flex items-center gap-1 text-sm text-gray-500">
+                                <Target className="h-3 w-3" />
+                                <span>{course.task_count} tasks</span>
+                              </div>
+                            </div>
+                          </div>
+                          
+                          <Button 
+                            onClick={() => handleStartCourse(course.id)}
+                            className="w-full flex items-center gap-2"
+                          >
+                            <Play className="h-4 w-4" />
+                            Start Learning
+                          </Button>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* Achievements Section */}
