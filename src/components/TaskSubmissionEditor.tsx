@@ -6,6 +6,8 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
 import AICodingAssistant from './AICodingAssistant';
 
 interface Task {
@@ -33,6 +35,10 @@ const TaskSubmissionEditor = ({ task, language, onSubmit }: TaskSubmissionEditor
   const [isPreviewLoading, setIsPreviewLoading] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
   const [showDemo, setShowDemo] = useState(false);
+  const [showInputDialog, setShowInputDialog] = useState(false);
+  const [inputPrompt, setInputPrompt] = useState('');
+  const [inputValue, setInputValue] = useState('');
+  const [inputResolver, setInputResolver] = useState<((value: string) => void) | null>(null);
   const editorRef = useRef(null);
 
   // Update code when task changes
@@ -65,13 +71,30 @@ const TaskSubmissionEditor = ({ task, language, onSubmit }: TaskSubmissionEditor
     }
   };
 
+  const simulateInput = (prompt: string): Promise<string> => {
+    return new Promise((resolve) => {
+      setInputPrompt(prompt);
+      setInputValue('');
+      setInputResolver(() => resolve);
+      setShowInputDialog(true);
+    });
+  };
+
+  const handleInputSubmit = () => {
+    if (inputResolver) {
+      inputResolver(inputValue);
+      setShowInputDialog(false);
+      setInputResolver(null);
+    }
+  };
+
   const runCodePreview = () => {
     setIsPreviewLoading(true);
     
-    setTimeout(() => {
+    setTimeout(async () => {
       try {
         if (language === 'python') {
-          // Enhanced Python simulation
+          // Enhanced Python simulation with input() support
           const lines = code.split('\n');
           let output = '';
           let variables: { [key: string]: any } = {};
@@ -82,6 +105,52 @@ const TaskSubmissionEditor = ({ task, language, onSubmit }: TaskSubmissionEditor
             
             // Skip comments and empty lines
             if (trimmedLine.startsWith('#') || !trimmedLine) continue;
+            
+            // Handle input() function
+            const inputMatch = trimmedLine.match(/^(\w+)\s*=\s*input\((.*)\)$/);
+            if (inputMatch) {
+              const [, varName, promptArg] = inputMatch;
+              let promptText = 'Enter input:';
+              
+              // Extract prompt from input() function
+              if (promptArg) {
+                const cleanPrompt = promptArg.replace(/^["']|["']$/g, '');
+                if (cleanPrompt) {
+                  promptText = cleanPrompt;
+                }
+              }
+              
+              try {
+                const userInput = await simulateInput(promptText);
+                variables[varName] = userInput;
+                output += `${promptText}${userInput}\n`;
+              } catch (error) {
+                output += `Input error: ${error}\n`;
+              }
+              continue;
+            }
+            
+            // Handle standalone input() calls
+            const standaloneInputMatch = trimmedLine.match(/^input\((.*)\)$/);
+            if (standaloneInputMatch) {
+              const [, promptArg] = standaloneInputMatch;
+              let promptText = 'Enter input:';
+              
+              if (promptArg) {
+                const cleanPrompt = promptArg.replace(/^["']|["']$/g, '');
+                if (cleanPrompt) {
+                  promptText = cleanPrompt;
+                }
+              }
+              
+              try {
+                const userInput = await simulateInput(promptText);
+                output += `${promptText}${userInput}\n`;
+              } catch (error) {
+                output += `Input error: ${error}\n`;
+              }
+              continue;
+            }
             
             // Handle variable assignments
             const assignmentMatch = trimmedLine.match(/^(\w+)\s*=\s*(.+)$/);
@@ -243,46 +312,46 @@ const TaskSubmissionEditor = ({ task, language, onSubmit }: TaskSubmissionEditor
 
   return (
     <div className="flex flex-col h-full bg-white">
-      {/* Enhanced Task Information Header */}
+      {/* Enhanced Task Information Header with Balanced Font Sizes */}
       <Card className="mb-6 bg-gradient-to-r from-blue-50 via-white to-purple-50 border-none shadow-lg">
         <CardHeader className="pb-4">
           <div className="flex justify-between items-start">
             <div className="flex-1">
-              <div className="flex items-center gap-3 mb-3">
+              <div className="flex items-center gap-3 mb-2">
                 <div className="p-2 bg-blue-100 rounded-lg">
-                  <Target className="h-6 w-6 text-blue-600" />
+                  <Target className="h-5 w-5 text-blue-600" />
                 </div>
-                <CardTitle className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                <CardTitle className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
                   {task.title}
                 </CardTitle>
               </div>
-              <CardDescription className="text-lg text-gray-700 leading-relaxed font-medium">
+              <CardDescription className="text-base text-gray-700 leading-relaxed">
                 {task.description}
               </CardDescription>
             </div>
             <div className="flex gap-3">
-              <Badge variant="secondary" className="capitalize px-4 py-2 text-sm font-semibold bg-blue-100 text-blue-800 border-blue-200">
+              <Badge variant="secondary" className="capitalize px-3 py-1 text-sm font-medium bg-blue-100 text-blue-800 border-blue-200">
                 {task.difficulty_level}
               </Badge>
-              <Badge variant="outline" className="capitalize px-4 py-2 text-sm font-semibold bg-purple-100 text-purple-800 border-purple-200">
+              <Badge variant="outline" className="capitalize px-3 py-1 text-sm font-medium bg-purple-100 text-purple-800 border-purple-200">
                 {language}
               </Badge>
             </div>
           </div>
         </CardHeader>
         
-        <CardContent className="space-y-6">
-          {/* Instructions Section with Enhanced Styling */}
-          <div className="bg-white rounded-xl shadow-sm border border-blue-100 p-6">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="p-2 bg-green-100 rounded-lg">
-                <BookOpen className="h-5 w-5 text-green-600" />
+        <CardContent className="space-y-4">
+          {/* Instructions Section with Balanced Styling */}
+          <div className="bg-white rounded-lg shadow-sm border border-blue-100 p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="p-1.5 bg-green-100 rounded-md">
+                <BookOpen className="h-4 w-4 text-green-600" />
               </div>
-              <h3 className="text-xl font-bold text-gray-900">Instructions</h3>
+              <h3 className="text-lg font-semibold text-gray-900">Instructions</h3>
             </div>
-            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-l-4 border-blue-400 rounded-lg p-6">
+            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-l-4 border-blue-400 rounded-md p-4">
               <div className="prose prose-blue max-w-none">
-                <p className="text-gray-800 leading-relaxed whitespace-pre-wrap font-medium text-base">
+                <p className="text-gray-800 leading-relaxed whitespace-pre-wrap text-sm">
                   {task.instructions}
                 </p>
               </div>
@@ -291,23 +360,23 @@ const TaskSubmissionEditor = ({ task, language, onSubmit }: TaskSubmissionEditor
 
           {/* Expected Output Section */}
           {task.expected_output && (
-            <div className="bg-white rounded-xl shadow-sm border border-green-100 p-6">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="p-2 bg-green-100 rounded-lg">
-                  <Target className="h-5 w-5 text-green-600" />
+            <div className="bg-white rounded-lg shadow-sm border border-green-100 p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <div className="p-1.5 bg-green-100 rounded-md">
+                  <Target className="h-4 w-4 text-green-600" />
                 </div>
-                <h3 className="text-xl font-bold text-gray-900">Expected Output</h3>
+                <h3 className="text-lg font-semibold text-gray-900">Expected Output</h3>
               </div>
-              <div className="bg-gray-900 border border-gray-700 rounded-lg p-4 relative overflow-hidden">
-                <div className="absolute top-0 left-0 right-0 h-8 bg-gray-800 flex items-center px-4 border-b border-gray-700">
-                  <div className="flex gap-2">
-                    <div className="w-3 h-3 bg-red-500 rounded-full"></div>
-                    <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
-                    <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+              <div className="bg-gray-900 border border-gray-700 rounded-md p-3 relative overflow-hidden">
+                <div className="absolute top-0 left-0 right-0 h-6 bg-gray-800 flex items-center px-3 border-b border-gray-700">
+                  <div className="flex gap-1.5">
+                    <div className="w-2.5 h-2.5 bg-red-500 rounded-full"></div>
+                    <div className="w-2.5 h-2.5 bg-yellow-500 rounded-full"></div>
+                    <div className="w-2.5 h-2.5 bg-green-500 rounded-full"></div>
                   </div>
-                  <span className="text-gray-400 text-xs ml-4 font-mono">Output Console</span>
+                  <span className="text-gray-400 text-xs ml-3 font-mono">Output Console</span>
                 </div>
-                <pre className="whitespace-pre-wrap text-green-400 font-mono text-sm mt-8 leading-relaxed">
+                <pre className="whitespace-pre-wrap text-green-400 font-mono text-sm mt-6 leading-relaxed">
                   {task.expected_output}
                 </pre>
               </div>
@@ -316,19 +385,19 @@ const TaskSubmissionEditor = ({ task, language, onSubmit }: TaskSubmissionEditor
 
           {/* Tags Section */}
           {task.tags && task.tags.length > 0 && (
-            <div className="bg-white rounded-xl shadow-sm border border-purple-100 p-6">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="p-2 bg-purple-100 rounded-lg">
-                  <Tags className="h-5 w-5 text-purple-600" />
+            <div className="bg-white rounded-lg shadow-sm border border-purple-100 p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <div className="p-1.5 bg-purple-100 rounded-md">
+                  <Tags className="h-4 w-4 text-purple-600" />
                 </div>
-                <h3 className="text-xl font-bold text-gray-900">Topics</h3>
+                <h3 className="text-lg font-semibold text-gray-900">Topics</h3>
               </div>
               <div className="flex flex-wrap gap-2">
                 {task.tags.map((tag, index) => (
                   <Badge 
                     key={index} 
                     variant="outline" 
-                    className="text-purple-700 border-purple-300 bg-purple-50 px-3 py-1 font-medium hover:bg-purple-100 transition-colors"
+                    className="text-purple-700 border-purple-300 bg-purple-50 px-2 py-1 text-sm font-medium hover:bg-purple-100 transition-colors"
                   >
                     {tag}
                   </Badge>
@@ -424,7 +493,7 @@ const TaskSubmissionEditor = ({ task, language, onSubmit }: TaskSubmissionEditor
         </div>
 
         {/* Code Editor */}
-        <div style={{ height: '400px' }} className="border-b border-gray-700">
+        <div style={{ height: '500px' }} className="border-b border-gray-700">
           <Editor
             height="100%"
             language={language}
@@ -451,7 +520,7 @@ const TaskSubmissionEditor = ({ task, language, onSubmit }: TaskSubmissionEditor
         </div>
 
         {/* Code Preview/Output Section */}
-        <div className="p-4 bg-gray-800">
+        <div className="p-3 bg-gray-800">
           <div className="flex items-center justify-between mb-2">
             <h3 className="text-sm font-semibold text-gray-300 uppercase tracking-wide">
               Code Preview
@@ -473,7 +542,7 @@ const TaskSubmissionEditor = ({ task, language, onSubmit }: TaskSubmissionEditor
               )}
             </Button>
           </div>
-          <div className="bg-black rounded p-3 font-mono text-sm text-blue-400 min-h-[60px] max-h-[120px] overflow-auto border border-gray-600">
+          <div className="bg-black rounded p-3 font-mono text-sm text-blue-400 min-h-[60px] max-h-[100px] overflow-auto border border-gray-600">
             <pre className="whitespace-pre-wrap">{previewOutput}</pre>
           </div>
         </div>
@@ -501,6 +570,44 @@ const TaskSubmissionEditor = ({ task, language, onSubmit }: TaskSubmissionEditor
           </div>
         )}
       </div>
+
+      {/* Input Dialog for Python input() function */}
+      <Dialog open={showInputDialog} onOpenChange={setShowInputDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Input Required</DialogTitle>
+            <DialogDescription>
+              Your code is asking for input. Please enter a value below.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm font-medium text-gray-700 mb-2 block">
+                {inputPrompt}
+              </label>
+              <Input
+                value={inputValue}
+                onChange={(e) => setInputValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    handleInputSubmit();
+                  }
+                }}
+                placeholder="Enter your input..."
+                autoFocus
+              />
+            </div>
+            <div className="flex justify-end space-x-2">
+              <Button variant="outline" onClick={() => setShowInputDialog(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleInputSubmit}>
+                Submit
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* AI Coding Assistant */}
       <AICodingAssistant currentCode={code} language={language} />
