@@ -1,7 +1,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import Editor from '@monaco-editor/react';
-import { Send, Square, ChevronDown, CheckCircle, XCircle, Loader2 } from 'lucide-react';
+import { Send, Square, ChevronDown, CheckCircle, XCircle, Loader2, Play, RotateCcw, BookOpen, Target, Tags } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -31,6 +31,8 @@ const TaskSubmissionEditor = ({ task, language, onSubmit }: TaskSubmissionEditor
   const [lastSubmissionResult, setLastSubmissionResult] = useState<boolean | null>(null);
   const [previewOutput, setPreviewOutput] = useState('Click "Preview" to see code output...');
   const [isPreviewLoading, setIsPreviewLoading] = useState(false);
+  const [isTyping, setIsTyping] = useState(false);
+  const [showDemo, setShowDemo] = useState(false);
   const editorRef = useRef(null);
 
   // Update code when task changes
@@ -39,6 +41,8 @@ const TaskSubmissionEditor = ({ task, language, onSubmit }: TaskSubmissionEditor
       setCode(task.initial_code);
       setLastSubmissionResult(null);
       setPreviewOutput('Click "Preview" to see code output...');
+      setShowDemo(false);
+      setIsTyping(false);
     }
   }, [task?.id]);
 
@@ -179,10 +183,57 @@ const TaskSubmissionEditor = ({ task, language, onSubmit }: TaskSubmissionEditor
     }, 500);
   };
 
+  const startTypingDemo = () => {
+    if (!task || isTyping) return;
+    
+    setIsTyping(true);
+    setShowDemo(true);
+    setCode('');
+    
+    const codeLines = task.initial_code.split('\n');
+    let currentLineIndex = 0;
+    let currentCharIndex = 0;
+    let currentCode = '';
+    
+    const typeCharacter = () => {
+      if (currentLineIndex < codeLines.length) {
+        const currentLine = codeLines[currentLineIndex];
+        
+        if (currentCharIndex < currentLine.length) {
+          currentCode += currentLine[currentCharIndex];
+          setCode(currentCode);
+          currentCharIndex++;
+          setTimeout(typeCharacter, 70); // 70ms per character
+        } else {
+          currentCode += '\n';
+          setCode(currentCode);
+          currentLineIndex++;
+          currentCharIndex = 0;
+          if (currentLineIndex < codeLines.length) {
+            setTimeout(typeCharacter, 400); // 400ms line delay
+          } else {
+            setIsTyping(false);
+          }
+        }
+      }
+    };
+    
+    typeCharacter();
+  };
+
+  const resetDemo = () => {
+    setIsTyping(false);
+    setShowDemo(false);
+    if (task) {
+      setCode(task.initial_code);
+    }
+  };
+
   if (!task) {
     return (
-      <div className="flex items-center justify-center h-full bg-gray-50">
-        <div className="text-center">
+      <div className="flex items-center justify-center h-full bg-gradient-to-br from-slate-50 to-blue-50">
+        <div className="text-center bg-white rounded-xl shadow-lg p-8">
+          <BookOpen className="h-16 w-16 text-gray-400 mx-auto mb-4" />
           <h2 className="text-xl font-bold mb-2 text-gray-800">No Task Selected</h2>
           <p className="text-gray-600">Please select a task to start coding.</p>
         </div>
@@ -192,69 +243,149 @@ const TaskSubmissionEditor = ({ task, language, onSubmit }: TaskSubmissionEditor
 
   return (
     <div className="flex flex-col h-full bg-white">
-      {/* Task Information Header */}
-      <Card className="mb-6">
-        <CardHeader>
+      {/* Enhanced Task Information Header */}
+      <Card className="mb-6 bg-gradient-to-r from-blue-50 via-white to-purple-50 border-none shadow-lg">
+        <CardHeader className="pb-4">
           <div className="flex justify-between items-start">
-            <div>
-              <CardTitle className="text-2xl font-bold text-gray-900">{task.title}</CardTitle>
-              <CardDescription className="mt-2 text-gray-700 leading-relaxed">
+            <div className="flex-1">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="p-2 bg-blue-100 rounded-lg">
+                  <Target className="h-6 w-6 text-blue-600" />
+                </div>
+                <CardTitle className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                  {task.title}
+                </CardTitle>
+              </div>
+              <CardDescription className="text-lg text-gray-700 leading-relaxed font-medium">
                 {task.description}
               </CardDescription>
             </div>
-            <div className="flex gap-2">
-              <Badge variant="secondary" className="capitalize">
+            <div className="flex gap-3">
+              <Badge variant="secondary" className="capitalize px-4 py-2 text-sm font-semibold bg-blue-100 text-blue-800 border-blue-200">
                 {task.difficulty_level}
               </Badge>
-              <Badge variant="outline" className="capitalize">
+              <Badge variant="outline" className="capitalize px-4 py-2 text-sm font-semibold bg-purple-100 text-purple-800 border-purple-200">
                 {language}
               </Badge>
             </div>
           </div>
         </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">Instructions</h3>
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <p className="text-blue-900 leading-relaxed whitespace-pre-wrap">{task.instructions}</p>
+        
+        <CardContent className="space-y-6">
+          {/* Instructions Section with Enhanced Styling */}
+          <div className="bg-white rounded-xl shadow-sm border border-blue-100 p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2 bg-green-100 rounded-lg">
+                <BookOpen className="h-5 w-5 text-green-600" />
+              </div>
+              <h3 className="text-xl font-bold text-gray-900">Instructions</h3>
+            </div>
+            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-l-4 border-blue-400 rounded-lg p-6">
+              <div className="prose prose-blue max-w-none">
+                <p className="text-gray-800 leading-relaxed whitespace-pre-wrap font-medium text-base">
+                  {task.instructions}
+                </p>
               </div>
             </div>
-
-            {task.expected_output && (
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">Expected Output</h3>
-                <div className="bg-gray-100 border border-gray-300 rounded-lg p-4 font-mono text-sm">
-                  <pre className="whitespace-pre-wrap text-gray-800">{task.expected_output}</pre>
-                </div>
-              </div>
-            )}
-
-            {task.tags && task.tags.length > 0 && (
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">Tags</h3>
-                <div className="flex flex-wrap gap-2">
-                  {task.tags.map((tag, index) => (
-                    <Badge key={index} variant="outline" className="text-purple-700 border-purple-300">
-                      {tag}
-                    </Badge>
-                  ))}
-                </div>
-              </div>
-            )}
           </div>
+
+          {/* Expected Output Section */}
+          {task.expected_output && (
+            <div className="bg-white rounded-xl shadow-sm border border-green-100 p-6">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-2 bg-green-100 rounded-lg">
+                  <Target className="h-5 w-5 text-green-600" />
+                </div>
+                <h3 className="text-xl font-bold text-gray-900">Expected Output</h3>
+              </div>
+              <div className="bg-gray-900 border border-gray-700 rounded-lg p-4 relative overflow-hidden">
+                <div className="absolute top-0 left-0 right-0 h-8 bg-gray-800 flex items-center px-4 border-b border-gray-700">
+                  <div className="flex gap-2">
+                    <div className="w-3 h-3 bg-red-500 rounded-full"></div>
+                    <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
+                    <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                  </div>
+                  <span className="text-gray-400 text-xs ml-4 font-mono">Output Console</span>
+                </div>
+                <pre className="whitespace-pre-wrap text-green-400 font-mono text-sm mt-8 leading-relaxed">
+                  {task.expected_output}
+                </pre>
+              </div>
+            </div>
+          )}
+
+          {/* Tags Section */}
+          {task.tags && task.tags.length > 0 && (
+            <div className="bg-white rounded-xl shadow-sm border border-purple-100 p-6">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-2 bg-purple-100 rounded-lg">
+                  <Tags className="h-5 w-5 text-purple-600" />
+                </div>
+                <h3 className="text-xl font-bold text-gray-900">Topics</h3>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {task.tags.map((tag, index) => (
+                  <Badge 
+                    key={index} 
+                    variant="outline" 
+                    className="text-purple-700 border-purple-300 bg-purple-50 px-3 py-1 font-medium hover:bg-purple-100 transition-colors"
+                  >
+                    {tag}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 
       {/* Code Editor Section */}
-      <div className="flex-1 bg-gray-900 rounded-lg overflow-hidden">
+      <div className="flex-1 bg-gray-900 rounded-lg overflow-hidden shadow-xl border border-gray-700">
         {/* Editor Header */}
         <div className="flex items-center justify-between p-4 bg-gray-800 border-b border-gray-700">
           <div className="flex items-center gap-4">
             <h2 className="text-xl font-semibold text-white">Code Editor</h2>
+            <div className="flex gap-2">
+              <div className="w-3 h-3 bg-red-500 rounded-full"></div>
+              <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
+              <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+            </div>
           </div>
           
           <div className="flex items-center space-x-3">
+            {/* Demo Controls */}
+            <Button
+              onClick={startTypingDemo}
+              disabled={isTyping}
+              size="sm"
+              variant="outline"
+              className="bg-gray-700 border-gray-600 text-gray-300 hover:bg-gray-600"
+            >
+              {isTyping ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Typing...
+                </>
+              ) : (
+                <>
+                  <Play className="w-4 h-4 mr-2" />
+                  Demo
+                </>
+              )}
+            </Button>
+
+            {showDemo && (
+              <Button
+                onClick={resetDemo}
+                size="sm"
+                variant="outline"
+                className="bg-gray-700 border-gray-600 text-gray-300 hover:bg-gray-600"
+              >
+                <RotateCcw className="w-4 h-4 mr-2" />
+                Reset
+              </Button>
+            )}
+            
             {/* Submit Button */}
             <Button
               onClick={handleSubmitSolution}
@@ -292,7 +423,7 @@ const TaskSubmissionEditor = ({ task, language, onSubmit }: TaskSubmissionEditor
           </div>
         </div>
 
-        {/* Code Editor - Give it more height */}
+        {/* Code Editor */}
         <div style={{ height: '400px' }} className="border-b border-gray-700">
           <Editor
             height="100%"
@@ -319,7 +450,7 @@ const TaskSubmissionEditor = ({ task, language, onSubmit }: TaskSubmissionEditor
           />
         </div>
 
-        {/* Code Preview/Output Section - Make it more compact */}
+        {/* Code Preview/Output Section */}
         <div className="p-4 bg-gray-800">
           <div className="flex items-center justify-between mb-2">
             <h3 className="text-sm font-semibold text-gray-300 uppercase tracking-wide">
@@ -347,7 +478,7 @@ const TaskSubmissionEditor = ({ task, language, onSubmit }: TaskSubmissionEditor
           </div>
         </div>
 
-        {/* Submission Feedback - Make it more compact */}
+        {/* Submission Feedback */}
         {lastSubmissionResult !== null && (
           <div className={`p-3 border-t ${
             lastSubmissionResult 
