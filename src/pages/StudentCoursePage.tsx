@@ -253,6 +253,7 @@ const StudentCoursePage = () => {
               {selectedTaskId && currentTask ? (
                 <TaskSubmissionEditor
                   task={currentTask}
+                  language={course.language}
                   onSubmit={submitTask}
                 />
               ) : (
