@@ -1,13 +1,14 @@
 
 import { useState, useRef, useEffect } from 'react';
 import Editor from '@monaco-editor/react';
-import { Send, Square, ChevronDown, CheckCircle, XCircle, Loader2, Play, RotateCcw, BookOpen, Target, Tags } from 'lucide-react';
+import { Send, Square, ChevronDown, CheckCircle, XCircle, Loader2, Play, RotateCcw, BookOpen, Target, Tags, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { useToast } from '@/hooks/use-toast';
 import AICodingAssistant from './AICodingAssistant';
 
 interface Task {
@@ -39,7 +40,10 @@ const TaskSubmissionEditor = ({ task, language, onSubmit }: TaskSubmissionEditor
   const [inputPrompt, setInputPrompt] = useState('');
   const [inputValue, setInputValue] = useState('');
   const [inputResolver, setInputResolver] = useState<((value: string) => void) | null>(null);
+  const [pendingInputVariable, setPendingInputVariable] = useState<string>('');
+  const [showPersistentError, setShowPersistentError] = useState(false);
   const editorRef = useRef(null);
+  const { toast } = useToast();
 
   // Update code when task changes
   useEffect(() => {
@@ -49,6 +53,7 @@ const TaskSubmissionEditor = ({ task, language, onSubmit }: TaskSubmissionEditor
       setPreviewOutput('Click "Preview" to see code output...');
       setShowDemo(false);
       setIsTyping(false);
+      setShowPersistentError(false);
     }
   }, [task?.id]);
 
@@ -63,18 +68,36 @@ const TaskSubmissionEditor = ({ task, language, onSubmit }: TaskSubmissionEditor
     try {
       const result = await onSubmit(code);
       setLastSubmissionResult(result);
+      
+      if (!result) {
+        setShowPersistentError(true);
+        toast({
+          title: "Not quite right",
+          description: "Your solution needs some work. Check the expected output and try again.",
+          variant: "destructive",
+        });
+      } else {
+        setShowPersistentError(false);
+      }
     } catch (error) {
       console.error('Submission error:', error);
       setLastSubmissionResult(false);
+      setShowPersistentError(true);
+      toast({
+        title: "Submission error",
+        description: "There was an error submitting your code. Please try again.",
+        variant: "destructive",
+      });
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const simulateInput = (prompt: string): Promise<string> => {
+  const simulateInput = (prompt: string, variableName: string): Promise<string> => {
     return new Promise((resolve) => {
       setInputPrompt(prompt);
       setInputValue('');
+      setPendingInputVariable(variableName);
       setInputResolver(() => resolve);
       setShowInputDialog(true);
     });
@@ -85,6 +108,7 @@ const TaskSubmissionEditor = ({ task, language, onSubmit }: TaskSubmissionEditor
       inputResolver(inputValue);
       setShowInputDialog(false);
       setInputResolver(null);
+      setPendingInputVariable('');
     }
   };
 
@@ -106,7 +130,7 @@ const TaskSubmissionEditor = ({ task, language, onSubmit }: TaskSubmissionEditor
             // Skip comments and empty lines
             if (trimmedLine.startsWith('#') || !trimmedLine) continue;
             
-            // Handle input() function
+            // Handle input() function with variable assignment
             const inputMatch = trimmedLine.match(/^(\w+)\s*=\s*input\((.*)\)$/);
             if (inputMatch) {
               const [, varName, promptArg] = inputMatch;
@@ -121,7 +145,7 @@ const TaskSubmissionEditor = ({ task, language, onSubmit }: TaskSubmissionEditor
               }
               
               try {
-                const userInput = await simulateInput(promptText);
+                const userInput = await simulateInput(promptText, varName);
                 variables[varName] = userInput;
                 output += `${promptText}${userInput}\n`;
               } catch (error) {
@@ -144,7 +168,7 @@ const TaskSubmissionEditor = ({ task, language, onSubmit }: TaskSubmissionEditor
               }
               
               try {
-                const userInput = await simulateInput(promptText);
+                const userInput = await simulateInput(promptText, '');
                 output += `${promptText}${userInput}\n`;
               } catch (error) {
                 output += `Input error: ${error}\n`;
@@ -321,19 +345,19 @@ const TaskSubmissionEditor = ({ task, language, onSubmit }: TaskSubmissionEditor
                 <div className="p-2 bg-blue-100 rounded-lg">
                   <Target className="h-5 w-5 text-blue-600" />
                 </div>
-                <CardTitle className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                <CardTitle className="text-xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
                   {task.title}
                 </CardTitle>
               </div>
-              <CardDescription className="text-base text-gray-700 leading-relaxed">
+              <CardDescription className="text-sm text-gray-700 leading-relaxed">
                 {task.description}
               </CardDescription>
             </div>
             <div className="flex gap-3">
-              <Badge variant="secondary" className="capitalize px-3 py-1 text-sm font-medium bg-blue-100 text-blue-800 border-blue-200">
+              <Badge variant="secondary" className="capitalize px-3 py-1 text-xs font-medium bg-blue-100 text-blue-800 border-blue-200">
                 {task.difficulty_level}
               </Badge>
-              <Badge variant="outline" className="capitalize px-3 py-1 text-sm font-medium bg-purple-100 text-purple-800 border-purple-200">
+              <Badge variant="outline" className="capitalize px-3 py-1 text-xs font-medium bg-purple-100 text-purple-800 border-purple-200">
                 {language}
               </Badge>
             </div>
@@ -341,19 +365,19 @@ const TaskSubmissionEditor = ({ task, language, onSubmit }: TaskSubmissionEditor
         </CardHeader>
         
         <CardContent className="space-y-4">
-          {/* Instructions Section with Balanced Styling */}
+          {/* Instructions Section with Improved Styling */}
           <div className="bg-white rounded-lg shadow-sm border border-blue-100 p-4">
             <div className="flex items-center gap-2 mb-3">
               <div className="p-1.5 bg-green-100 rounded-md">
                 <BookOpen className="h-4 w-4 text-green-600" />
               </div>
-              <h3 className="text-lg font-semibold text-gray-900">Instructions</h3>
+              <h3 className="text-base font-semibold text-gray-900">Instructions</h3>
             </div>
             <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-l-4 border-blue-400 rounded-md p-4">
               <div className="prose prose-blue max-w-none">
-                <p className="text-gray-800 leading-relaxed whitespace-pre-wrap text-sm">
+                <div className="text-gray-800 leading-relaxed whitespace-pre-wrap text-sm text-justify break-words">
                   {task.instructions}
-                </p>
+                </div>
               </div>
             </div>
           </div>
@@ -365,7 +389,7 @@ const TaskSubmissionEditor = ({ task, language, onSubmit }: TaskSubmissionEditor
                 <div className="p-1.5 bg-green-100 rounded-md">
                   <Target className="h-4 w-4 text-green-600" />
                 </div>
-                <h3 className="text-lg font-semibold text-gray-900">Expected Output</h3>
+                <h3 className="text-base font-semibold text-gray-900">Expected Output</h3>
               </div>
               <div className="bg-gray-900 border border-gray-700 rounded-md p-3 relative overflow-hidden">
                 <div className="absolute top-0 left-0 right-0 h-6 bg-gray-800 flex items-center px-3 border-b border-gray-700">
@@ -390,14 +414,14 @@ const TaskSubmissionEditor = ({ task, language, onSubmit }: TaskSubmissionEditor
                 <div className="p-1.5 bg-purple-100 rounded-md">
                   <Tags className="h-4 w-4 text-purple-600" />
                 </div>
-                <h3 className="text-lg font-semibold text-gray-900">Topics</h3>
+                <h3 className="text-base font-semibold text-gray-900">Topics</h3>
               </div>
               <div className="flex flex-wrap gap-2">
                 {task.tags.map((tag, index) => (
                   <Badge 
                     key={index} 
                     variant="outline" 
-                    className="text-purple-700 border-purple-300 bg-purple-50 px-2 py-1 text-sm font-medium hover:bg-purple-100 transition-colors"
+                    className="text-purple-700 border-purple-300 bg-purple-50 px-2 py-1 text-xs font-medium hover:bg-purple-100 transition-colors"
                   >
                     {tag}
                   </Badge>
@@ -408,12 +432,35 @@ const TaskSubmissionEditor = ({ task, language, onSubmit }: TaskSubmissionEditor
         </CardContent>
       </Card>
 
+      {/* Persistent Error Banner */}
+      {showPersistentError && (
+        <div className="mb-4 bg-red-50 border border-red-200 rounded-lg p-4">
+          <div className="flex items-center gap-3">
+            <div className="p-1 bg-red-100 rounded-full">
+              <AlertTriangle className="h-4 w-4 text-red-600" />
+            </div>
+            <div>
+              <h4 className="text-sm font-semibold text-red-800">Not quite right</h4>
+              <p className="text-sm text-red-700">Your solution needs some work. Check the expected output and try again.</p>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowPersistentError(false)}
+              className="ml-auto text-red-600 hover:text-red-800"
+            >
+              <XCircle className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* Code Editor Section */}
       <div className="flex-1 bg-gray-900 rounded-lg overflow-hidden shadow-xl border border-gray-700">
         {/* Editor Header */}
         <div className="flex items-center justify-between p-4 bg-gray-800 border-b border-gray-700">
           <div className="flex items-center gap-4">
-            <h2 className="text-xl font-semibold text-white">Code Editor</h2>
+            <h2 className="text-lg font-semibold text-white">Code Editor</h2>
             <div className="flex gap-2">
               <div className="w-3 h-3 bg-red-500 rounded-full"></div>
               <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
@@ -548,7 +595,7 @@ const TaskSubmissionEditor = ({ task, language, onSubmit }: TaskSubmissionEditor
         </div>
 
         {/* Submission Feedback */}
-        {lastSubmissionResult !== null && (
+        {lastSubmissionResult !== null && !showPersistentError && (
           <div className={`p-3 border-t ${
             lastSubmissionResult 
               ? 'bg-green-900 border-green-700 text-green-100' 
@@ -577,7 +624,7 @@ const TaskSubmissionEditor = ({ task, language, onSubmit }: TaskSubmissionEditor
           <DialogHeader>
             <DialogTitle>Input Required</DialogTitle>
             <DialogDescription>
-              Your code is asking for input. Please enter a value below.
+              Your code is asking for input{pendingInputVariable && ` for variable "${pendingInputVariable}"`}. Please enter a value below.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
