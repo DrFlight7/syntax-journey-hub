@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -36,7 +35,7 @@ interface UserProgress {
   completion_percentage: number;
 }
 
-export const useTaskManager = () => {
+export const useTaskManager = (courseId?: string) => {
   const { user } = useAuth();
   const { toast } = useToast();
   const [currentCourse, setCurrentCourse] = useState<Course | null>(null);
@@ -47,14 +46,112 @@ export const useTaskManager = () => {
 
   // Load course and initial task
   useEffect(() => {
-    if (user) {
-      loadUserProgress();
+    if (user && courseId) {
+      loadUserProgress(courseId);
+    } else if (user && !courseId) {
+      loadUserProgressForFirstCourse();
     }
-  }, [user]);
+  }, [user, courseId]);
 
-  const loadUserProgress = async () => {
+  const loadUserProgress = async (targetCourseId: string) => {
     try {
-      // First, get the first published course (for now)
+      console.log('[TASK-MANAGER] Loading progress for course:', targetCourseId);
+
+      // Get the specific course
+      const { data: courseData, error: courseError } = await supabase
+        .from('courses')
+        .select('*')
+        .eq('id', targetCourseId)
+        .eq('is_published', true)
+        .single();
+
+      if (courseError) {
+        console.error('[TASK-MANAGER] Course error:', courseError);
+        throw courseError;
+      }
+
+      console.log('[TASK-MANAGER] Course loaded:', courseData);
+      setCurrentCourse(courseData);
+
+      // Get all tasks for this course
+      const { data: tasks, error: tasksError } = await supabase
+        .from('tasks')
+        .select('*')
+        .eq('course_id', targetCourseId)
+        .order('order_index');
+
+      if (tasksError) {
+        console.error('[TASK-MANAGER] Tasks error:', tasksError);
+        throw tasksError;
+      }
+
+      console.log('[TASK-MANAGER] Tasks loaded:', tasks);
+      setAllTasks(tasks || []);
+
+      // Get or create user progress
+      let { data: progress, error: progressError } = await supabase
+        .from('user_progress')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('course_id', targetCourseId)
+        .maybeSingle();
+
+      if (progressError) {
+        console.error('[TASK-MANAGER] Progress error:', progressError);
+        throw progressError;
+      }
+
+      // If no progress exists, create it
+      if (!progress && tasks && tasks.length > 0) {
+        console.log('[TASK-MANAGER] Creating new progress');
+        const { data: newProgress, error: createError } = await supabase
+          .from('user_progress')
+          .insert({
+            user_id: user.id,
+            course_id: targetCourseId,
+            current_task_id: tasks[0].id,
+            total_tasks: tasks.length,
+            completed_tasks: 0,
+            completion_percentage: 0
+          })
+          .select()
+          .single();
+
+        if (createError) {
+          console.error('[TASK-MANAGER] Create progress error:', createError);
+          throw createError;
+        }
+        progress = newProgress;
+      }
+
+      console.log('[TASK-MANAGER] Progress loaded:', progress);
+      setUserProgress(progress);
+
+      // Set current task
+      if (progress?.current_task_id) {
+        const task = tasks?.find(t => t.id === progress.current_task_id);
+        console.log('[TASK-MANAGER] Setting current task:', task);
+        setCurrentTask(task || null);
+      } else if (tasks && tasks.length > 0) {
+        console.log('[TASK-MANAGER] Setting first task as current');
+        setCurrentTask(tasks[0]);
+      }
+
+    } catch (error) {
+      console.error('[TASK-MANAGER] Error loading user progress:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load your progress. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const loadUserProgressForFirstCourse = async () => {
+    try {
+      // First, get the first published course (for backward compatibility)
       const { data: courses, error: coursesError } = await supabase
         .from('courses')
         .select('*')
@@ -70,65 +167,9 @@ export const useTaskManager = () => {
       }
 
       const course = courses[0];
-      setCurrentCourse(course);
-
-      // Get all tasks for this course
-      const { data: tasks, error: tasksError } = await supabase
-        .from('tasks')
-        .select('*')
-        .eq('course_id', course.id)
-        .order('order_index');
-
-      if (tasksError) throw tasksError;
-      setAllTasks(tasks || []);
-
-      // Get or create user progress
-      let { data: progress, error: progressError } = await supabase
-        .from('user_progress')
-        .select('*')
-        .eq('user_id', user.id)
-        .eq('course_id', course.id)
-        .maybeSingle();
-
-      if (progressError) throw progressError;
-
-      // If no progress exists, create it
-      if (!progress && tasks && tasks.length > 0) {
-        const { data: newProgress, error: createError } = await supabase
-          .from('user_progress')
-          .insert({
-            user_id: user.id,
-            course_id: course.id,
-            current_task_id: tasks[0].id,
-            total_tasks: tasks.length,
-            completed_tasks: 0,
-            completion_percentage: 0
-          })
-          .select()
-          .single();
-
-        if (createError) throw createError;
-        progress = newProgress;
-      }
-
-      setUserProgress(progress);
-
-      // Set current task
-      if (progress?.current_task_id) {
-        const task = tasks?.find(t => t.id === progress.current_task_id);
-        setCurrentTask(task || null);
-      } else if (tasks && tasks.length > 0) {
-        setCurrentTask(tasks[0]);
-      }
-
+      await loadUserProgress(course.id);
     } catch (error) {
-      console.error('Error loading user progress:', error);
-      toast({
-        title: "Error",
-        description: "Failed to load your progress. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
+      console.error('Error loading first course progress:', error);
       setIsLoading(false);
     }
   };

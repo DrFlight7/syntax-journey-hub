@@ -2,7 +2,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
@@ -13,82 +12,29 @@ import UserProfile from '@/components/UserProfile';
 import { useTaskManager } from '@/hooks/useTaskManager';
 import TaskSubmissionEditor from '@/components/TaskSubmissionEditor';
 
-interface Course {
-  id: string;
-  title: string;
-  description: string;
-  language: string;
-  difficulty_level?: string;
-}
-
-interface Task {
-  id: string;
-  title: string;
-  description: string;
-  order_index: number;
-  difficulty_level?: string;
-}
-
 const StudentCoursePage = () => {
   const { courseId } = useParams<{ courseId: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const [course, setCourse] = useState<Course | null>(null);
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [loading, setLoading] = useState(true);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   
   const {
+    currentCourse,
     currentTask,
     userProgress,
-    allTasks: taskManagerTasks,
-    isLoading: taskManagerLoading,
+    allTasks,
+    isLoading,
     submitTask,
     moveToSpecificTask
-  } = useTaskManager();
+  } = useTaskManager(courseId);
 
+  // Set the first task as selected when tasks are loaded
   useEffect(() => {
-    if (courseId) {
-      fetchCourseData();
+    if (allTasks.length > 0 && !selectedTaskId) {
+      setSelectedTaskId(allTasks[0].id);
+      moveToSpecificTask(allTasks[0].id);
     }
-  }, [courseId]);
-
-  const fetchCourseData = async () => {
-    if (!courseId || !user) return;
-
-    try {
-      // Fetch course details
-      const { data: courseData, error: courseError } = await supabase
-        .from('courses')
-        .select('*')
-        .eq('id', courseId)
-        .eq('is_published', true)
-        .single();
-
-      if (courseError) throw courseError;
-      setCourse(courseData);
-
-      // Fetch course tasks
-      const { data: tasksData, error: tasksError } = await supabase
-        .from('tasks')
-        .select('*')
-        .eq('course_id', courseId)
-        .order('order_index');
-
-      if (tasksError) throw tasksError;
-      setTasks(tasksData || []);
-
-      // Set first task as selected if none selected
-      if (tasksData && tasksData.length > 0 && !selectedTaskId) {
-        setSelectedTaskId(tasksData[0].id);
-      }
-
-    } catch (error) {
-      console.error('Error fetching course data:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [allTasks, selectedTaskId, moveToSpecificTask]);
 
   const handleTaskSelect = (taskId: string) => {
     setSelectedTaskId(taskId);
@@ -98,7 +44,7 @@ const StudentCoursePage = () => {
   const getTaskStatus = (taskId: string) => {
     if (!userProgress) return 'locked';
     
-    const taskIndex = tasks.findIndex(t => t.id === taskId);
+    const taskIndex = allTasks.findIndex(t => t.id === taskId);
     const completedTasks = userProgress.completed_tasks;
     
     if (taskIndex < completedTasks) return 'completed';
@@ -111,7 +57,7 @@ const StudentCoursePage = () => {
     return status === 'completed' || status === 'current';
   };
 
-  if (loading || taskManagerLoading) {
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
         <div className="text-center">
@@ -122,7 +68,7 @@ const StudentCoursePage = () => {
     );
   }
 
-  if (!course) {
+  if (!currentCourse) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
         <Card>
@@ -158,18 +104,18 @@ const StudentCoursePage = () => {
                   Back to Dashboard
                 </Button>
                 <div>
-                  <h1 className="text-2xl font-bold text-gray-800">{course.title}</h1>
+                  <h1 className="text-2xl font-bold text-gray-800">{currentCourse.title}</h1>
                   <div className="flex items-center gap-4 mt-1">
                     <Badge variant="secondary" className="capitalize">
-                      {course.language}
+                      {currentCourse.language}
                     </Badge>
-                    {course.difficulty_level && (
+                    {currentCourse.difficulty_level && (
                       <Badge variant="outline" className="capitalize">
-                        {course.difficulty_level}
+                        {currentCourse.difficulty_level}
                       </Badge>
                     )}
                     <span className="text-sm text-gray-600">
-                      {userProgress?.completed_tasks || 0} of {tasks.length} tasks completed
+                      {userProgress?.completed_tasks || 0} of {allTasks.length} tasks completed
                     </span>
                   </div>
                 </div>
@@ -201,7 +147,7 @@ const StudentCoursePage = () => {
                 </CardHeader>
                 <CardContent className="p-0">
                   <div className="space-y-1">
-                    {tasks.map((task, index) => {
+                    {allTasks.map((task, index) => {
                       const status = getTaskStatus(task.id);
                       const isAccessible = isTaskAccessible(task.id);
                       const isSelected = selectedTaskId === task.id;
@@ -253,7 +199,7 @@ const StudentCoursePage = () => {
               {selectedTaskId && currentTask ? (
                 <TaskSubmissionEditor
                   task={currentTask}
-                  language={course.language}
+                  language={currentCourse.language}
                   onSubmit={submitTask}
                 />
               ) : (
