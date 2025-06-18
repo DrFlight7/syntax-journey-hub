@@ -28,6 +28,341 @@ interface TaskSubmissionEditorProps {
   onSubmit: (code: string) => Promise<boolean>;
 }
 
+// Enhanced Python simulator with support for classes and linked lists
+class PythonSimulator {
+  private variables: { [key: string]: any } = {};
+  private classes: { [key: string]: any } = {};
+  private output: string = '';
+
+  constructor(private simulateInput: (prompt: string, variableName: string) => Promise<string>) {}
+
+  async execute(code: string): Promise<string> {
+    this.variables = {};
+    this.classes = {};
+    this.output = '';
+
+    const lines = code.split('\n');
+    let i = 0;
+
+    while (i < lines.length) {
+      const line = lines[i].trim();
+      if (!line || line.startsWith('#')) {
+        i++;
+        continue;
+      }
+
+      try {
+        if (line.startsWith('class ')) {
+          i = await this.handleClassDefinition(lines, i);
+        } else if (line.includes('=') && !line.includes('==') && !line.includes('!=') && !line.startsWith('if ') && !line.startsWith('elif ')) {
+          await this.handleAssignment(line);
+          i++;
+        } else if (line.startsWith('print(')) {
+          await this.handlePrint(line);
+          i++;
+        } else if (line.includes('input(')) {
+          await this.handleInput(line);
+          i++;
+        } else {
+          // Handle method calls and other operations
+          await this.handleMethodCall(line);
+          i++;
+        }
+      } catch (error) {
+        this.output += `Error on line ${i + 1}: ${error}\n`;
+        i++;
+      }
+    }
+
+    return this.output || 'Code executed successfully!';
+  }
+
+  private async handleClassDefinition(lines: string[], startIndex: number): Promise<number> {
+    const classLine = lines[startIndex].trim();
+    const classMatch = classLine.match(/^class\s+(\w+)(?:\(([^)]*)\))?:/);
+    
+    if (!classMatch) return startIndex + 1;
+
+    const className = classMatch[1];
+    const parentClass = classMatch[2]?.trim();
+
+    const classDef = {
+      name: className,
+      parent: parentClass,
+      methods: {} as { [key: string]: string[] },
+      attributes: [] as string[]
+    };
+
+    let i = startIndex + 1;
+    let currentMethod = '';
+    let methodLines: string[] = [];
+
+    // Parse class body
+    while (i < lines.length) {
+      const line = lines[i];
+      const trimmedLine = line.trim();
+
+      // Check if we've reached the end of the class (no indentation or new class/function)
+      if (trimmedLine && !line.startsWith('    ') && !line.startsWith('\t')) {
+        break;
+      }
+
+      if (trimmedLine.startsWith('def ')) {
+        // Save previous method if exists
+        if (currentMethod && methodLines.length > 0) {
+          classDef.methods[currentMethod] = [...methodLines];
+        }
+
+        // Start new method
+        const methodMatch = trimmedLine.match(/def\s+(\w+)\s*\(/);
+        currentMethod = methodMatch ? methodMatch[1] : '';
+        methodLines = [trimmedLine];
+      } else if (currentMethod && (line.startsWith('        ') || line.startsWith('\t\t') || trimmedLine === '')) {
+        // Method body line
+        methodLines.push(trimmedLine);
+      } else if (trimmedLine.startsWith('self.')) {
+        // Instance attribute
+        const attrMatch = trimmedLine.match(/self\.(\w+)/);
+        if (attrMatch && !classDef.attributes.includes(attrMatch[1])) {
+          classDef.attributes.push(attrMatch[1]);
+        }
+      }
+
+      i++;
+    }
+
+    // Save last method
+    if (currentMethod && methodLines.length > 0) {
+      classDef.methods[currentMethod] = [...methodLines];
+    }
+
+    this.classes[className] = classDef;
+    return i;
+  }
+
+  private async handleAssignment(line: string): Promise<void> {
+    const assignmentMatch = line.match(/^(\w+)\s*=\s*(.+)$/);
+    if (!assignmentMatch) return;
+
+    const [, varName, valueExpr] = assignmentMatch;
+
+    // Handle object instantiation
+    const constructorMatch = valueExpr.match(/(\w+)\((.*)\)/);
+    if (constructorMatch && this.classes[constructorMatch[1]]) {
+      const className = constructorMatch[1];
+      const args = this.parseArguments(constructorMatch[2]);
+      
+      // Create object instance
+      const instance = {
+        __class__: className,
+        __methods__: this.classes[className].methods,
+        ...Object.fromEntries(this.classes[className].attributes.map(attr => [attr, null]))
+      };
+
+      // Call constructor if exists
+      if (this.classes[className].methods['__init__']) {
+        await this.executeMethod(instance, '__init__', args);
+      }
+
+      this.variables[varName] = instance;
+      return;
+    }
+
+    // Handle input() calls
+    if (valueExpr.includes('input(')) {
+      const inputMatch = valueExpr.match(/input\((.*)\)$/);
+      if (inputMatch) {
+        const promptArg = inputMatch[1];
+        let promptText = 'Enter input:';
+        
+        if (promptArg) {
+          const cleanPrompt = promptArg.replace(/^["']|["']$/g, '');
+          if (cleanPrompt) {
+            promptText = cleanPrompt;
+          }
+        }
+        
+        const userInput = await this.simulateInput(promptText, varName);
+        this.variables[varName] = userInput;
+        this.output += `${promptText}${userInput}\n`;
+        return;
+      }
+    }
+
+    // Handle regular assignments
+    const value = this.evaluateExpression(valueExpr);
+    this.variables[varName] = value;
+  }
+
+  private async handleMethodCall(line: string): Promise<void> {
+    const methodMatch = line.match(/(\w+)\.(\w+)\((.*)\)/);
+    if (!methodMatch) return;
+
+    const [, objName, methodName, argsStr] = methodMatch;
+    const obj = this.variables[objName];
+
+    if (obj && obj.__class__ && obj.__methods__[methodName]) {
+      const args = this.parseArguments(argsStr);
+      await this.executeMethod(obj, methodName, args);
+    }
+  }
+
+  private async executeMethod(instance: any, methodName: string, args: any[]): Promise<any> {
+    const methodLines = instance.__methods__[methodName];
+    if (!methodLines) return;
+
+    // Simple method execution - handle basic operations
+    for (const line of methodLines) {
+      if (line.includes('self.')) {
+        // Handle attribute assignments
+        const attrMatch = line.match(/self\.(\w+)\s*=\s*(.+)/);
+        if (attrMatch) {
+          const [, attrName, valueExpr] = attrMatch;
+          
+          // Handle parameter references in constructor
+          if (methodName === '__init__' && valueExpr.match(/^\w+$/)) {
+            // Simple parameter assignment
+            const paramIndex = methodLines[0].match(/def\s+__init__\s*\([^,]+,\s*(\w+)/)?.[1];
+            if (paramIndex === valueExpr && args.length > 0) {
+              instance[attrName] = args[0];
+            } else {
+              instance[attrName] = this.evaluateExpression(valueExpr);
+            }
+          } else {
+            instance[attrName] = this.evaluateExpression(valueExpr);
+          }
+        }
+      }
+    }
+
+    return instance;
+  }
+
+  private parseArguments(argsStr: string): any[] {
+    if (!argsStr.trim()) return [];
+    
+    const args: any[] = [];
+    const argParts = argsStr.split(',');
+    
+    for (const arg of argParts) {
+      const trimmed = arg.trim();
+      args.push(this.evaluateExpression(trimmed));
+    }
+    
+    return args;
+  }
+
+  private evaluateExpression(expr: string): any {
+    const trimmed = expr.trim();
+    
+    // String literals
+    if ((trimmed.startsWith('"') && trimmed.endsWith('"')) || 
+        (trimmed.startsWith("'") && trimmed.endsWith("'"))) {
+      return trimmed.slice(1, -1);
+    }
+    
+    // Numbers
+    if (!isNaN(Number(trimmed))) {
+      return Number(trimmed);
+    }
+    
+    // Variables
+    if (this.variables[trimmed] !== undefined) {
+      return this.variables[trimmed];
+    }
+    
+    // Object attributes
+    const attrMatch = trimmed.match(/(\w+)\.(\w+)/);
+    if (attrMatch) {
+      const [, objName, attrName] = attrMatch;
+      const obj = this.variables[objName];
+      if (obj && obj[attrName] !== undefined) {
+        return obj[attrName];
+      }
+    }
+    
+    // None/null
+    if (trimmed === 'None' || trimmed === 'null') {
+      return null;
+    }
+    
+    // Boolean values
+    if (trimmed === 'True') return true;
+    if (trimmed === 'False') return false;
+    
+    return trimmed;
+  }
+
+  private async handlePrint(line: string): Promise<void> {
+    const printMatch = line.match(/^print\((.*)\)$/);
+    if (!printMatch) return;
+
+    const printContent = printMatch[1];
+    let outputLine = '';
+    
+    // Handle multiple arguments
+    const args = this.parseArguments(printContent);
+    
+    for (let i = 0; i < args.length; i++) {
+      let value = args[i];
+      
+      // Handle object representation
+      if (typeof value === 'object' && value !== null && value.__class__) {
+        if (value.__class__ === 'ListNode') {
+          // Special handling for ListNode to show linked list structure
+          outputLine += this.formatLinkedList(value);
+        } else {
+          outputLine += `<${value.__class__} object>`;
+        }
+      } else {
+        outputLine += String(value);
+      }
+      
+      if (i < args.length - 1) {
+        outputLine += ' ';
+      }
+    }
+    
+    this.output += outputLine + '\n';
+  }
+
+  private formatLinkedList(head: any): string {
+    const values: any[] = [];
+    let current = head;
+    let count = 0;
+    const maxNodes = 20; // Prevent infinite loops
+    
+    while (current && current.val !== undefined && count < maxNodes) {
+      values.push(current.val);
+      current = current.next;
+      count++;
+      
+      // Break if we detect a cycle or null
+      if (!current || current === head) break;
+    }
+    
+    return values.join(' -> ') + (current ? ' -> ...' : ' -> None');
+  }
+
+  private async handleInput(line: string): Promise<void> {
+    const inputMatch = line.match(/input\((.*)\)/);
+    if (!inputMatch) return;
+
+    const promptArg = inputMatch[1];
+    let promptText = 'Enter input:';
+    
+    if (promptArg) {
+      const cleanPrompt = promptArg.replace(/^["']|["']$/g, '');
+      if (cleanPrompt) {
+        promptText = cleanPrompt;
+      }
+    }
+    
+    const userInput = await this.simulateInput(promptText, '');
+    this.output += `${promptText}${userInput}\n`;
+  }
+}
+
 const TaskSubmissionEditor = ({ task, language, onSubmit }: TaskSubmissionEditorProps) => {
   const [code, setCode] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -118,153 +453,9 @@ const TaskSubmissionEditor = ({ task, language, onSubmit }: TaskSubmissionEditor
     setTimeout(async () => {
       try {
         if (language === 'python') {
-          // Enhanced Python simulation with input() support
-          const lines = code.split('\n');
-          let output = '';
-          let variables: { [key: string]: any } = {};
-          
-          // Process each line
-          for (const line of lines) {
-            const trimmedLine = line.trim();
-            
-            // Skip comments and empty lines
-            if (trimmedLine.startsWith('#') || !trimmedLine) continue;
-            
-            // Handle input() function with variable assignment
-            const inputMatch = trimmedLine.match(/^(\w+)\s*=\s*input\((.*)\)$/);
-            if (inputMatch) {
-              const [, varName, promptArg] = inputMatch;
-              let promptText = 'Enter input:';
-              
-              // Extract prompt from input() function
-              if (promptArg) {
-                const cleanPrompt = promptArg.replace(/^["']|["']$/g, '');
-                if (cleanPrompt) {
-                  promptText = cleanPrompt;
-                }
-              }
-              
-              try {
-                const userInput = await simulateInput(promptText, varName);
-                variables[varName] = userInput;
-                output += `${promptText}${userInput}\n`;
-              } catch (error) {
-                output += `Input error: ${error}\n`;
-              }
-              continue;
-            }
-            
-            // Handle standalone input() calls
-            const standaloneInputMatch = trimmedLine.match(/^input\((.*)\)$/);
-            if (standaloneInputMatch) {
-              const [, promptArg] = standaloneInputMatch;
-              let promptText = 'Enter input:';
-              
-              if (promptArg) {
-                const cleanPrompt = promptArg.replace(/^["']|["']$/g, '');
-                if (cleanPrompt) {
-                  promptText = cleanPrompt;
-                }
-              }
-              
-              try {
-                const userInput = await simulateInput(promptText, '');
-                output += `${promptText}${userInput}\n`;
-              } catch (error) {
-                output += `Input error: ${error}\n`;
-              }
-              continue;
-            }
-            
-            // Handle variable assignments
-            const assignmentMatch = trimmedLine.match(/^(\w+)\s*=\s*(.+)$/);
-            if (assignmentMatch) {
-              const [, varName, value] = assignmentMatch;
-              try {
-                // Simple value parsing - store the actual value without quotes
-                if (value.startsWith('"') && value.endsWith('"')) {
-                  variables[varName] = value.slice(1, -1); // Remove quotes
-                } else if (value.startsWith("'") && value.endsWith("'")) {
-                  variables[varName] = value.slice(1, -1); // Remove quotes
-                } else if (!isNaN(Number(value))) {
-                  variables[varName] = Number(value);
-                } else {
-                  variables[varName] = value;
-                }
-              } catch (e) {
-                variables[varName] = value;
-              }
-              continue;
-            }
-            
-            // Handle print statements
-            const printMatch = trimmedLine.match(/^print\((.*)\)$/);
-            if (printMatch) {
-              const printContent = printMatch[1];
-              let outputLine = '';
-              
-              // Split by comma but be careful with quoted strings
-              const args: string[] = [];
-              let currentArg = '';
-              let inQuotes = false;
-              let quoteChar = '';
-              
-              for (let i = 0; i < printContent.length; i++) {
-                const char = printContent[i];
-                
-                if ((char === '"' || char === "'") && !inQuotes) {
-                  inQuotes = true;
-                  quoteChar = char;
-                  currentArg += char;
-                } else if (char === quoteChar && inQuotes) {
-                  inQuotes = false;
-                  quoteChar = '';
-                  currentArg += char;
-                } else if (char === ',' && !inQuotes) {
-                  args.push(currentArg.trim());
-                  currentArg = '';
-                } else {
-                  currentArg += char;
-                }
-              }
-              
-              // Add the last argument
-              if (currentArg.trim()) {
-                args.push(currentArg.trim());
-              }
-              
-              // Process each argument
-              for (let i = 0; i < args.length; i++) {
-                const arg = args[i];
-                
-                if (arg.startsWith('"') && arg.endsWith('"')) {
-                  // String literal - remove quotes for output
-                  outputLine += arg.slice(1, -1);
-                } else if (arg.startsWith("'") && arg.endsWith("'")) {
-                  // String literal - remove quotes for output
-                  outputLine += arg.slice(1, -1);
-                } else if (variables[arg] !== undefined) {
-                  // Variable - use stored value (already without quotes)
-                  outputLine += variables[arg];
-                } else if (!isNaN(Number(arg))) {
-                  // Number
-                  outputLine += arg;
-                } else {
-                  // Unknown, keep as is
-                  outputLine += arg;
-                }
-                
-                // Add space between arguments (Python print default)
-                if (i < args.length - 1) {
-                  outputLine += ' ';
-                }
-              }
-              
-              output += outputLine + '\n';
-            }
-          }
-          
-          setPreviewOutput(output || 'No output generated');
+          const simulator = new PythonSimulator(simulateInput);
+          const result = await simulator.execute(code);
+          setPreviewOutput(result);
         } else {
           setPreviewOutput(`${language} preview not implemented yet`);
         }
