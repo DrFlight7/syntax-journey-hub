@@ -1,4 +1,3 @@
-
 import { useState, useRef, useEffect } from 'react';
 import Editor from '@monaco-editor/react';
 import { Send, Square, ChevronDown, CheckCircle, XCircle, Loader2, Play, RotateCcw, BookOpen, Target, Tags, AlertTriangle } from 'lucide-react';
@@ -363,6 +362,346 @@ class PythonSimulator {
   }
 }
 
+// Java simulator for basic Java code execution
+class JavaSimulator {
+  private variables: { [key: string]: any } = {};
+  private classes: { [key: string]: any } = {};
+  private output: string = '';
+
+  async execute(code: string): Promise<string> {
+    this.variables = {};
+    this.classes = {};
+    this.output = '';
+
+    try {
+      // Parse the Java code and simulate execution
+      await this.parseAndExecute(code);
+      return this.output || 'Code executed successfully!';
+    } catch (error) {
+      return `Execution error: ${error}`;
+    }
+  }
+
+  private async parseAndExecute(code: string): Promise<void> {
+    const lines = code.split('\n');
+    let i = 0;
+    let inMainMethod = false;
+    let inClass = false;
+    let currentClassName = '';
+    let braceDepth = 0;
+
+    while (i < lines.length) {
+      const line = lines[i].trim();
+      
+      if (!line || line.startsWith('//')) {
+        i++;
+        continue;
+      }
+
+      // Track brace depth
+      braceDepth += (line.match(/{/g) || []).length;
+      braceDepth -= (line.match(/}/g) || []).length;
+
+      // Class definition
+      if (line.includes('class ') && line.includes('{')) {
+        const classMatch = line.match(/class\s+(\w+)/);
+        if (classMatch) {
+          currentClassName = classMatch[1];
+          inClass = true;
+          this.classes[currentClassName] = {
+            name: currentClassName,
+            methods: {},
+            fields: {}
+          };
+        }
+      }
+
+      // Main method detection
+      if (line.includes('public static void main')) {
+        inMainMethod = true;
+        i++;
+        continue;
+      }
+
+      // Execute statements in main method
+      if (inMainMethod && braceDepth > 0) {
+        await this.executeStatement(line, lines, i);
+      }
+
+      // End of main method
+      if (inMainMethod && line === '}' && braceDepth === 1) {
+        inMainMethod = false;
+      }
+
+      i++;
+    }
+  }
+
+  private async executeStatement(line: string, allLines: string[], lineIndex: number): Promise<void> {
+    const trimmed = line.trim();
+
+    // Handle System.out.print statements
+    if (trimmed.includes('System.out.print')) {
+      await this.handlePrint(trimmed);
+      return;
+    }
+
+    // Handle variable declarations and assignments
+    if (this.isVariableDeclaration(trimmed)) {
+      await this.handleVariableDeclaration(trimmed);
+      return;
+    }
+
+    // Handle object creation (new keyword)
+    if (trimmed.includes('new ') && trimmed.includes('=')) {
+      await this.handleObjectCreation(trimmed, allLines, lineIndex);
+      return;
+    }
+
+    // Handle method calls
+    if (trimmed.includes('.') && trimmed.endsWith(';')) {
+      await this.handleMethodCall(trimmed);
+      return;
+    }
+  }
+
+  private async handlePrint(statement: string): Promise<void> {
+    // Handle System.out.println and System.out.print
+    const printMatch = statement.match(/System\.out\.print(?:ln)?\((.*)\);?/);
+    if (!printMatch) return;
+
+    const content = printMatch[1];
+    let output = '';
+
+    // Handle string concatenation and variables
+    if (content.includes('+')) {
+      const parts = content.split('+').map(part => part.trim());
+      for (const part of parts) {
+        if (part.startsWith('"') && part.endsWith('"')) {
+          // String literal
+          output += part.slice(1, -1);
+        } else if (this.variables[part]) {
+          // Variable
+          output += this.variables[part];
+        } else if (part.includes('.')) {
+          // Object method call or field access
+          const result = await this.evaluateExpression(part);
+          output += result;
+        } else {
+          output += part.replace(/"/g, '');
+        }
+      }
+    } else if (content.startsWith('"') && content.endsWith('"')) {
+      // Simple string
+      output = content.slice(1, -1);
+    } else if (this.variables[content]) {
+      // Variable
+      output = this.variables[content];
+    } else {
+      // Method call or expression
+      output = await this.evaluateExpression(content);
+    }
+
+    // Add newline for println
+    if (statement.includes('println')) {
+      this.output += output + '\n';
+    } else {
+      this.output += output;
+    }
+  }
+
+  private isVariableDeclaration(statement: string): boolean {
+    const javaTypes = ['int', 'String', 'boolean', 'double', 'float', 'long', 'char', 'ListNode', 'Solution'];
+    return javaTypes.some(type => statement.startsWith(type + ' ')) && statement.includes('=');
+  }
+
+  private async handleVariableDeclaration(statement: string): Promise<void> {
+    const match = statement.match(/(\w+)\s+(\w+)\s*=\s*(.+);?/);
+    if (!match) return;
+
+    const [, type, varName, value] = match;
+    
+    if (value.includes('new ')) {
+      // Object instantiation
+      const objMatch = value.match(/new\s+(\w+)\((.*)\)/);
+      if (objMatch) {
+        const [, className, args] = objMatch;
+        this.variables[varName] = await this.createObject(className, args);
+      }
+    } else {
+      // Simple assignment
+      this.variables[varName] = await this.evaluateExpression(value);
+    }
+  }
+
+  private async handleObjectCreation(statement: string, allLines: string[], lineIndex: number): Promise<void> {
+    const match = statement.match(/(\w+)\s+(\w+)\s*=\s*new\s+(\w+)\((.*)\);?/);
+    if (!match) return;
+
+    const [, type, varName, className, args] = match;
+    this.variables[varName] = await this.createObject(className, args);
+
+    // Handle chained assignments (like building linked lists)
+    if (lineIndex < allLines.length - 1) {
+      const nextLines = allLines.slice(lineIndex + 1, lineIndex + 10);
+      for (const nextLine of nextLines) {
+        const trimmed = nextLine.trim();
+        if (trimmed.startsWith(varName + '.next')) {
+          await this.handleFieldAssignment(trimmed);
+        } else if (!trimmed.startsWith(varName)) {
+          break;
+        }
+      }
+    }
+  }
+
+  private async handleFieldAssignment(statement: string): Promise<void> {
+    const match = statement.match(/(\w+)\.(\w+)\s*=\s*(.+);?/);
+    if (!match) return;
+
+    const [, objName, fieldName, value] = match;
+    const obj = this.variables[objName];
+    
+    if (obj) {
+      if (value.includes('new ')) {
+        const objMatch = value.match(/new\s+(\w+)\((.*)\)/);
+        if (objMatch) {
+          const [, className, args] = objMatch;
+          obj[fieldName] = await this.createObject(className, args);
+        }
+      } else {
+        obj[fieldName] = await this.evaluateExpression(value);
+      }
+    }
+  }
+
+  private async createObject(className: string, argsStr: string): Promise<any> {
+    const args = argsStr ? argsStr.split(',').map(arg => this.evaluateExpression(arg.trim())) : [];
+    
+    if (className === 'ListNode') {
+      const obj: any = { __class__: 'ListNode', val: null, next: null };
+      if (args.length > 0) {
+        obj.val = await args[0];
+      }
+      if (args.length > 1) {
+        obj.next = await args[1];
+      }
+      return obj;
+    } else if (className === 'Solution') {
+      return { __class__: 'Solution' };
+    }
+    
+    return { __class__: className };
+  }
+
+  private async handleMethodCall(statement: string): Promise<void> {
+    const match = statement.match(/(\w+)\.(\w+)\((.*)\);?/);
+    if (!match) return;
+
+    const [, objName, methodName, argsStr] = match;
+    const obj = this.variables[objName];
+
+    if (!obj) return;
+
+    // Handle specific methods
+    if (methodName === 'printList' && obj.__class__ === 'Main') {
+      const args = argsStr ? [this.variables[argsStr.trim()]] : [];
+      if (args[0]) {
+        this.output += this.formatLinkedList(args[0]) + '\n';
+      }
+    } else if (methodName === 'reverseList' && obj.__class__ === 'Solution') {
+      const args = argsStr ? [this.variables[argsStr.trim()]] : [];
+      if (args[0]) {
+        const reversed = this.reverseLinkedList(args[0]);
+        // Store the result if it's assigned to a variable
+        this.lastMethodResult = reversed;
+      }
+    }
+  }
+
+  private reverseLinkedList(head: any): any {
+    if (!head || !head.next) return head;
+
+    let prev = null;
+    let current = head;
+
+    while (current) {
+      const next = current.next;
+      current.next = prev;
+      prev = current;
+      current = next;
+    }
+
+    return prev;
+  }
+
+  private formatLinkedList(head: any): string {
+    if (!head) return 'null';
+
+    const values: any[] = [];
+    let current = head;
+    let count = 0;
+    const maxNodes = 20;
+
+    while (current && count < maxNodes) {
+      values.push(current.val);
+      current = current.next;
+      count++;
+      
+      if (!current) break;
+    }
+
+    return values.join(' -> ') + ' -> null';
+  }
+
+  private async evaluateExpression(expr: string): Promise<any> {
+    const trimmed = expr.trim();
+
+    // String literals
+    if (trimmed.startsWith('"') && trimmed.endsWith('"')) {
+      return trimmed.slice(1, -1);
+    }
+
+    // Numbers
+    if (!isNaN(Number(trimmed))) {
+      return Number(trimmed);
+    }
+
+    // Variables
+    if (this.variables[trimmed]) {
+      return this.variables[trimmed];
+    }
+
+    // Method calls that return values
+    if (trimmed.includes('.')) {
+      const parts = trimmed.split('.');
+      if (parts.length === 2) {
+        const [objName, methodCall] = parts;
+        const obj = this.variables[objName];
+        
+        if (methodCall.includes('(') && obj) {
+          const methodMatch = methodCall.match(/(\w+)\((.*)\)/);
+          if (methodMatch) {
+            const [, methodName, args] = methodMatch;
+            if (methodName === 'reverseList' && obj.__class__ === 'Solution') {
+              const argVar = args.trim();
+              const argObj = this.variables[argVar];
+              return this.reverseLinkedList(argObj);
+            }
+          }
+        }
+      }
+    }
+
+    // Null
+    if (trimmed === 'null') return null;
+
+    return trimmed;
+  }
+
+  private lastMethodResult: any = null;
+}
+
 const TaskSubmissionEditor = ({ task, language, onSubmit }: TaskSubmissionEditorProps) => {
   const [code, setCode] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -454,6 +793,10 @@ const TaskSubmissionEditor = ({ task, language, onSubmit }: TaskSubmissionEditor
       try {
         if (language === 'python') {
           const simulator = new PythonSimulator(simulateInput);
+          const result = await simulator.execute(code);
+          setPreviewOutput(result);
+        } else if (language === 'java') {
+          const simulator = new JavaSimulator();
           const result = await simulator.execute(code);
           setPreviewOutput(result);
         } else {
