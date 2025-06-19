@@ -697,7 +697,8 @@ class JavaSimulator {
       const arrayArg = args[0];
       if (arrayArg) {
         const result = await this.executeCalculateTotalSales(arrayArg);
-        this.methodResults[`${objName}.${methodName}`] = result;
+        // Store result in a way that can be accessed later if needed
+        obj[`_lastResult_${methodName}`] = result;
       }
     }
   }
@@ -756,28 +757,8 @@ class JavaSimulator {
     }
 
     // Method calls
-    if (trimmed.includes('.')) {
-      const methodMatch = trimmed.match(/(\w+)\.(\w+)\((.*)\)/);
-      if (methodMatch) {
-        const [, objName, methodName, argsStr] = methodMatch;
-        const obj = this.variables[objName];
-        
-        if (obj && methodName === 'calculateTotalSales') {
-          const args = argsStr ? this.parseMethodArguments(argsStr) : [];
-          if (args.length > 0) {
-            const result = await this.executeCalculateTotalSales(args[0]);
-            // Store the result for this specific method call
-            this.methodResults[`${objName}.${methodName}`] = result;
-            return result;
-          }
-        }
-        
-        // Check if we have a stored result for this method call
-        const methodKey = `${objName}.${methodName}`;
-        if (this.methodResults[methodKey] !== undefined) {
-          return this.methodResults[methodKey];
-        }
-      }
+    if (trimmed.includes('.') && trimmed.includes('(')) {
+      return await this.evaluateMethodCall(trimmed);
     }
 
     // Array literals
@@ -794,6 +775,23 @@ class JavaSimulator {
     if (trimmed === 'null') return null;
 
     return trimmed;
+  }
+
+  private async evaluateMethodCall(methodCallExpr: string): Promise<any> {
+    const methodMatch = methodCallExpr.match(/(\w+)\.(\w+)\((.*)\)/);
+    if (!methodMatch) return methodCallExpr;
+
+    const [, objName, methodName, argsStr] = methodMatch;
+    const obj = this.variables[objName];
+    
+    if (obj && methodName === 'calculateTotalSales') {
+      const args = argsStr ? this.parseMethodArguments(argsStr) : [];
+      if (args.length > 0) {
+        return await this.executeCalculateTotalSales(args[0]);
+      }
+    }
+    
+    return methodCallExpr;
   }
 }
 
