@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -301,23 +302,38 @@ export const useTaskManager = (courseId?: string) => {
       if (isCorrect) {
         await moveToNextTask();
         toast({
-          title: "Correct!",
+          title: "Correct! ✅",
           description: "Great job! Moving to the next task.",
         });
         return true;
       } else {
+        // Enhanced error messaging with debugging details
+        const errorDetails = validationResult?.executionOutput || "Your output doesn't match the expected result.";
+        const validationDetails = validationResult?.validationResults?.details || '';
+        
+        const fullMessage = validationDetails && validationDetails !== errorDetails 
+          ? `${errorDetails}\n\nDetails: ${validationDetails}`
+          : errorDetails;
+
         toast({
-          title: "Not quite right",
-          description: validationResult?.executionOutput || "Your output doesn't match the expected result. Try again!",
+          title: "Not quite right ❌",
+          description: fullMessage,
           variant: "destructive",
         });
         return false;
       }
     } catch (error) {
       console.error('Error submitting task:', error);
+      
+      // Enhanced error messaging for debugging
+      let errorMessage = "Failed to submit your solution. Please try again.";
+      if (error instanceof Error) {
+        errorMessage += ` Error: ${error.message}`;
+      }
+      
       toast({
-        title: "Error",
-        description: "Failed to submit your solution. Please try again.",
+        title: "Submission Error ⚠️",
+        description: errorMessage,
         variant: "destructive",
       });
       return false;

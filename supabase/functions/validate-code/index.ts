@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
@@ -19,7 +18,6 @@ serve(async (req) => {
     console.log(`[VALIDATE-CODE] Starting validation for task ${taskId}`)
     console.log(`[VALIDATE-CODE] Language: ${language}`)
     console.log(`[VALIDATE-CODE] Code length: ${code?.length || 0}`)
-    console.log(`[VALIDATE-CODE] Raw code content:`, JSON.stringify(code))
 
     if (!code || !taskId) {
       console.log(`[VALIDATE-CODE] Missing required parameters - code: ${!!code}, taskId: ${!!taskId}`)
@@ -53,7 +51,7 @@ serve(async (req) => {
     console.log(`[VALIDATE-CODE] Task found: ${task.title}`)
     console.log(`[VALIDATE-CODE] Expected output: ${task.expected_output}`)
 
-    // Enhanced validation logic with much stricter checking
+    // Enhanced validation logic with support for both Python and Java
     let isCorrect = false
     let executionOutput = ''
     let validationResults = {}
@@ -67,39 +65,21 @@ serve(async (req) => {
       if (expectedOutput && expectedOutput.includes('Hello, my name is')) {
         console.log(`[VALIDATE-CODE] Validating introduction task`)
         
-        // Very strict validation for introduction task - check exact format
         const hasName = codeToCheck.includes('name') && codeToCheck.includes('=') && !codeToCheck.includes('name = "your name"')
         const hasAge = codeToCheck.includes('age') && codeToCheck.includes('=') && !codeToCheck.includes('age = 0')
         const hasColor = (codeToCheck.includes('favorite_color') || codeToCheck.includes('color')) && codeToCheck.includes('=') && !codeToCheck.includes('favorite_color = "blue"')
         const hasPrint = codeToCheck.includes('print') && codeToCheck.includes('name') && codeToCheck.includes('age')
         
-        // Check if they actually changed the default values
         const changedName = !codeToCheck.includes('"your name"') && !codeToCheck.includes("'your name'")
         const changedAge = !codeToCheck.includes('age = 0') && !codeToCheck.includes('age=0')
         const changedColor = !codeToCheck.includes('"blue"') && !codeToCheck.includes("'blue'")
         
-        // CRITICAL FIX: Check for the specific spacing error pattern
-        // Look for the exact problematic pattern: "hello ," (with space before comma)
         const hasSpaceBeforeComma = codeToCheck.includes('hello ,') || codeToCheck.includes('"hello ,') || codeToCheck.includes("'hello ,")
         
-        console.log(`[VALIDATE-CODE] Validation checks:`)
-        console.log(`- hasName: ${hasName}`)
-        console.log(`- hasAge: ${hasAge}`)
-        console.log(`- hasColor: ${hasColor}`)
-        console.log(`- hasPrint: ${hasPrint}`)
-        console.log(`- changedName: ${changedName}`)
-        console.log(`- changedAge: ${changedAge}`)
-        console.log(`- changedColor: ${changedColor}`)
-        console.log(`- hasSpaceBeforeComma: ${hasSpaceBeforeComma}`)
-        console.log(`- Code contains "hello ,": ${codeToCheck.includes('hello ,')}`)
-        console.log(`- Raw code search: ${code.includes('Hello ,')}`)
-        
-        // If there's a space before the comma, it's an error
         if (hasSpaceBeforeComma) {
           isCorrect = false
           executionOutput = 'Spacing error: There should be no space before the comma in "Hello, my name is". It should be "Hello, my name is" not "Hello , my name is".'
         } else {
-          // Check if the format is correct (has "hello, my name is" without the spacing error)
           const hasCorrectHelloFormat = codeToCheck.includes('hello, my name is')
           
           isCorrect = hasName && hasAge && hasColor && hasPrint && changedName && changedAge && changedColor && hasCorrectHelloFormat
@@ -123,10 +103,7 @@ serve(async (req) => {
       } else if (expectedOutput && expectedOutput.includes('Hello, World!')) {
         console.log(`[VALIDATE-CODE] Validating Hello World task`)
         
-        // Very strict Hello World validation
         const hasExactPrint = codeToCheck.includes('print("hello, world!")') || codeToCheck.includes("print('hello, world!')")
-        
-        console.log(`[VALIDATE-CODE] Hello World check - hasExactPrint: ${hasExactPrint}`)
         
         isCorrect = hasExactPrint
         
@@ -136,25 +113,126 @@ serve(async (req) => {
           executionOutput = 'Expected exactly: print("Hello, World!") or print(\'Hello, World!\'). Make sure the capitalization and punctuation match exactly.'
         }
       } else {
-        console.log(`[VALIDATE-CODE] Validating generic task`)
-        
-        // For tasks without specific expected output, be very strict
-        const minCodeLength = 30 // Require substantial code
+        const minCodeLength = 30
         const hasPrint = codeToCheck.includes('print(')
-        const hasValidStructure = codeToCheck.split('\n').length >= 3 // At least 3 lines
-        
-        console.log(`[VALIDATE-CODE] Generic validation:`)
-        console.log(`- Code length: ${code.length} (min: ${minCodeLength})`)
-        console.log(`- Has print: ${hasPrint}`)
-        console.log(`- Has valid structure: ${hasValidStructure}`)
+        const hasValidStructure = codeToCheck.split('\n').length >= 3
         
         if (expectedOutput) {
-          // If there's expected output but it's not a known pattern, be very strict
           isCorrect = false
           executionOutput = `This task requires specific output. Your code doesn't produce the expected result: "${expectedOutput}"`
         } else {
           isCorrect = code.length >= minCodeLength && hasPrint && hasValidStructure
           executionOutput = isCorrect ? 'Code validation passed' : `Code must be at least ${minCodeLength} characters, include print statements, and have proper structure`
+        }
+      }
+    } else if (language === 'java') {
+      console.log(`[VALIDATE-CODE] Validating Java language`)
+      
+      const expectedOutput = task.expected_output
+      const codeToCheck = code.toLowerCase().trim()
+      
+      // Check for Array Sum Calculator task
+      if (task.title.includes('Array Sum Calculator') || (expectedOutput && expectedOutput.includes('Total sales'))) {
+        console.log(`[VALIDATE-CODE] Validating Array Sum Calculator task`)
+        
+        // Check for required elements in Java array sum solution
+        const hasClass = codeToCheck.includes('class') && codeToCheck.includes('solution')
+        const hasMethod = codeToCheck.includes('calculatetotalsales') && codeToCheck.includes('int[]')
+        const hasLoop = codeToCheck.includes('for') || codeToCheck.includes('while')
+        const hasReturn = codeToCheck.includes('return')
+        const hasValidLogic = codeToCheck.includes('totalsales') && (codeToCheck.includes('+=') || codeToCheck.includes('+ '))
+        
+        console.log(`[VALIDATE-CODE] Java validation checks:`)
+        console.log(`- hasClass: ${hasClass}`)
+        console.log(`- hasMethod: ${hasMethod}`)
+        console.log(`- hasLoop: ${hasLoop}`)
+        console.log(`- hasReturn: ${hasReturn}`)
+        console.log(`- hasValidLogic: ${hasValidLogic}`)
+        
+        isCorrect = hasClass && hasMethod && hasLoop && hasReturn && hasValidLogic
+        
+        if (isCorrect) {
+          executionOutput = expectedOutput || 'Java array sum solution validated successfully!'
+        } else {
+          let missing = []
+          if (!hasClass) missing.push('Solution class definition')
+          if (!hasMethod) missing.push('calculateTotalSales method with int[] parameter')
+          if (!hasLoop) missing.push('loop to iterate through array')
+          if (!hasReturn) missing.push('return statement')
+          if (!hasValidLogic) missing.push('logic to sum array elements (totalSales += sale)')
+          
+          executionOutput = `Java validation failed. Missing: ${missing.join(', ')}. Make sure you implement the calculateTotalSales method properly.`
+        }
+        
+      } else if (task.title.includes('Reverse') && task.title.includes('Linked List')) {
+        console.log(`[VALIDATE-CODE] Validating Reverse Linked List task`)
+        
+        // Check for required elements in Java linked list reversal
+        const hasListNodeClass = codeToCheck.includes('listnode')
+        const hasSolutionClass = codeToCheck.includes('class') && codeToCheck.includes('solution')
+        const hasReverseMethod = codeToCheck.includes('reverselist')
+        const hasPointers = codeToCheck.includes('prev') && codeToCheck.includes('curr') && codeToCheck.includes('next')
+        const hasWhileLoop = codeToCheck.includes('while') && codeToCheck.includes('curr')
+        const hasPointerManipulation = codeToCheck.includes('curr.next = prev')
+        const hasReturnPrev = codeToCheck.includes('return prev')
+        
+        console.log(`[VALIDATE-CODE] Java Linked List validation checks:`)
+        console.log(`- hasListNodeClass: ${hasListNodeClass}`)
+        console.log(`- hasSolutionClass: ${hasSolutionClass}`)
+        console.log(`- hasReverseMethod: ${hasReverseMethod}`)
+        console.log(`- hasPointers: ${hasPointers}`)
+        console.log(`- hasWhileLoop: ${hasWhileLoop}`)
+        console.log(`- hasPointerManipulation: ${hasPointerManipulation}`)
+        console.log(`- hasReturnPrev: ${hasReturnPrev}`)
+        
+        isCorrect = hasListNodeClass && hasSolutionClass && hasReverseMethod && hasPointers && hasWhileLoop && hasPointerManipulation && hasReturnPrev
+        
+        if (isCorrect) {
+          executionOutput = expectedOutput || 'Java linked list reversal solution validated successfully!'
+        } else {
+          let missing = []
+          if (!hasListNodeClass) missing.push('ListNode class definition')
+          if (!hasSolutionClass) missing.push('Solution class')
+          if (!hasReverseMethod) missing.push('reverseList method')
+          if (!hasPointers) missing.push('prev, curr, and next pointer variables')
+          if (!hasWhileLoop) missing.push('while loop with curr != null condition')
+          if (!hasPointerManipulation) missing.push('pointer manipulation: curr.next = prev')
+          if (!hasReturnPrev) missing.push('return prev statement')
+          
+          executionOutput = `Java validation failed. Missing: ${missing.join(', ')}. Make sure you implement the three-pointer approach for linked list reversal.`
+        }
+        
+      } else {
+        console.log(`[VALIDATE-CODE] Validating generic Java task`)
+        
+        // Generic Java validation
+        const minCodeLength = 50
+        const hasClass = codeToCheck.includes('class')
+        const hasMethod = codeToCheck.includes('public') || codeToCheck.includes('private') || codeToCheck.includes('protected')
+        const hasValidStructure = codeToCheck.split('\n').length >= 5
+        
+        console.log(`[VALIDATE-CODE] Generic Java validation:`)
+        console.log(`- Code length: ${code.length} (min: ${minCodeLength})`)
+        console.log(`- Has class: ${hasClass}`)
+        console.log(`- Has method: ${hasMethod}`)
+        console.log(`- Has valid structure: ${hasValidStructure}`)
+        
+        if (expectedOutput) {
+          isCorrect = code.length >= minCodeLength && hasClass && hasMethod && hasValidStructure
+          if (!isCorrect) {
+            let missing = []
+            if (code.length < minCodeLength) missing.push(`at least ${minCodeLength} characters`)
+            if (!hasClass) missing.push('class definition')
+            if (!hasMethod) missing.push('method implementation')
+            if (!hasValidStructure) missing.push('proper code structure (at least 5 lines)')
+            
+            executionOutput = `Java validation failed. Missing: ${missing.join(', ')}`
+          } else {
+            executionOutput = expectedOutput
+          }
+        } else {
+          isCorrect = code.length >= minCodeLength && hasClass && hasMethod && hasValidStructure
+          executionOutput = isCorrect ? 'Java code validation passed' : `Java code must have proper class structure, methods, and be at least ${minCodeLength} characters`
         }
       }
 
@@ -164,10 +242,9 @@ serve(async (req) => {
         details: isCorrect ? 'All validation checks passed!' : executionOutput
       }
     } else {
-      console.log(`[VALIDATE-CODE] Validating non-Python language: ${language}`)
-      // Very strict for other languages
+      console.log(`[VALIDATE-CODE] Unsupported language: ${language}`)
       isCorrect = false
-      executionOutput = 'Only Python code validation is currently supported'
+      executionOutput = `Language "${language}" is not currently supported. Only Python and Java are supported.`
       validationResults = {
         testsPassed: 0,
         totalTests: 1,
