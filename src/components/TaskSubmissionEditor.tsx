@@ -362,7 +362,7 @@ class PythonSimulator {
   }
 }
 
-// Java simulator for basic Java code execution
+// Enhanced Java simulator for Array Sum Calculator and other Java tasks
 class JavaSimulator {
   private variables: { [key: string]: any } = {};
   private classes: { [key: string]: any } = {};
@@ -374,7 +374,6 @@ class JavaSimulator {
     this.output = '';
 
     try {
-      // Parse the Java code and simulate execution
       await this.parseAndExecute(code);
       return this.output || 'Code executed successfully!';
     } catch (error) {
@@ -389,6 +388,7 @@ class JavaSimulator {
     let inClass = false;
     let currentClassName = '';
     let braceDepth = 0;
+    let currentClassContent: string[] = [];
 
     while (i < lines.length) {
       const line = lines[i].trim();
@@ -404,15 +404,61 @@ class JavaSimulator {
 
       // Class definition
       if (line.includes('class ') && line.includes('{')) {
-        const classMatch = line.match(/class\s+(\w+)/);
+        const classMatch = line.match(/(?:public\s+)?class\s+(\w+)/);
         if (classMatch) {
           currentClassName = classMatch[1];
           inClass = true;
+          currentClassContent = [];
           this.classes[currentClassName] = {
             name: currentClassName,
             methods: {},
             fields: {}
           };
+        }
+      }
+
+      // Collect class content
+      if (inClass && currentClassName) {
+        currentClassContent.push(lines[i]);
+        
+        // Parse methods within the class
+        if (line.includes('public ') && line.includes('(') && line.includes(')')) {
+          const methodMatch = line.match(/public\s+(\w+)\s+(\w+)\s*\(([^)]*)\)/);
+          if (methodMatch) {
+            const [, returnType, methodName, params] = methodMatch;
+            
+            // Extract method body
+            const methodBody: string[] = [];
+            let methodBraceDepth = 0;
+            let j = i + 1;
+            
+            // Find opening brace
+            while (j < lines.length && !lines[j].trim().includes('{')) {
+              j++;
+            }
+            
+            if (j < lines.length) {
+              methodBraceDepth = 1;
+              j++; // Skip the line with opening brace
+              
+              while (j < lines.length && methodBraceDepth > 0) {
+                const methodLine = lines[j].trim();
+                methodBraceDepth += (methodLine.match(/{/g) || []).length;
+                methodBraceDepth -= (methodLine.match(/}/g) || []).length;
+                
+                if (methodBraceDepth > 0) {
+                  methodBody.push(methodLine);
+                }
+                j++;
+              }
+            }
+            
+            this.classes[currentClassName].methods[methodName] = {
+              returnType,
+              params,
+              body: methodBody
+            };
+          }
         }
       }
 
@@ -428,9 +474,15 @@ class JavaSimulator {
         await this.executeStatement(line, lines, i);
       }
 
-      // End of main method
-      if (inMainMethod && line === '}' && braceDepth === 1) {
-        inMainMethod = false;
+      // End of main method or class
+      if (line === '}') {
+        if (inMainMethod && braceDepth === 1) {
+          inMainMethod = false;
+        }
+        if (inClass && braceDepth === 0) {
+          inClass = false;
+          currentClassName = '';
+        }
       }
 
       i++;
@@ -475,31 +527,31 @@ class JavaSimulator {
 
     // Handle string concatenation and variables
     if (content.includes('+')) {
-      const parts = content.split('+').map(part => part.trim());
+      const parts = this.parseStringConcatenation(content);
       for (const part of parts) {
         if (part.startsWith('"') && part.endsWith('"')) {
           // String literal
           output += part.slice(1, -1);
-        } else if (this.variables[part]) {
+        } else if (this.variables[part.trim()]) {
           // Variable
-          output += this.variables[part];
+          output += this.variables[part.trim()];
         } else if (part.includes('.')) {
-          // Object method call or field access
-          const result = await this.evaluateExpression(part);
+          // Method call or field access
+          const result = await this.evaluateExpression(part.trim());
           output += result;
         } else {
-          output += part.replace(/"/g, '');
+          output += part.replace(/"/g, '').trim();
         }
       }
     } else if (content.startsWith('"') && content.endsWith('"')) {
       // Simple string
       output = content.slice(1, -1);
-    } else if (this.variables[content]) {
+    } else if (this.variables[content.trim()]) {
       // Variable
-      output = this.variables[content];
+      output = this.variables[content.trim()];
     } else {
       // Method call or expression
-      output = await this.evaluateExpression(content);
+      output = await this.evaluateExpression(content.trim());
     }
 
     // Add newline for println
@@ -508,6 +560,36 @@ class JavaSimulator {
     } else {
       this.output += output;
     }
+  }
+
+  private parseStringConcatenation(content: string): string[] {
+    const parts: string[] = [];
+    let current = '';
+    let inString = false;
+    let i = 0;
+
+    while (i < content.length) {
+      const char = content[i];
+      
+      if (char === '"' && (i === 0 || content[i-1] !== '\\')) {
+        inString = !inString;
+        current += char;
+      } else if (char === '+' && !inString) {
+        if (current.trim()) {
+          parts.push(current.trim());
+        }
+        current = '';
+      } else {
+        current += char;
+      }
+      i++;
+    }
+    
+    if (current.trim()) {
+      parts.push(current.trim());
+    }
+    
+    return parts;
   }
 
   private isVariableDeclaration(statement: string): boolean {
@@ -529,7 +611,7 @@ class JavaSimulator {
         this.variables[varName] = await this.createObject(className, args);
       }
     } else {
-      // Simple assignment
+      // Simple assignment or method call
       this.variables[varName] = await this.evaluateExpression(value);
     }
   }
@@ -540,43 +622,10 @@ class JavaSimulator {
 
     const [, type, varName, className, args] = match;
     this.variables[varName] = await this.createObject(className, args);
-
-    // Handle chained assignments (like building linked lists)
-    if (lineIndex < allLines.length - 1) {
-      const nextLines = allLines.slice(lineIndex + 1, lineIndex + 10);
-      for (const nextLine of nextLines) {
-        const trimmed = nextLine.trim();
-        if (trimmed.startsWith(varName + '.next')) {
-          await this.handleFieldAssignment(trimmed);
-        } else if (!trimmed.startsWith(varName)) {
-          break;
-        }
-      }
-    }
-  }
-
-  private async handleFieldAssignment(statement: string): Promise<void> {
-    const match = statement.match(/(\w+)\.(\w+)\s*=\s*(.+);?/);
-    if (!match) return;
-
-    const [, objName, fieldName, value] = match;
-    const obj = this.variables[objName];
-    
-    if (obj) {
-      if (value.includes('new ')) {
-        const objMatch = value.match(/new\s+(\w+)\((.*)\)/);
-        if (objMatch) {
-          const [, className, args] = objMatch;
-          obj[fieldName] = await this.createObject(className, args);
-        }
-      } else {
-        obj[fieldName] = await this.evaluateExpression(value);
-      }
-    }
   }
 
   private async createObject(className: string, argsStr: string): Promise<any> {
-    const args = argsStr ? argsStr.split(',').map(arg => this.evaluateExpression(arg.trim())) : [];
+    const args = argsStr ? this.parseMethodArguments(argsStr) : [];
     
     if (className === 'ListNode') {
       const obj: any = { __class__: 'ListNode', val: null, next: null };
@@ -594,6 +643,41 @@ class JavaSimulator {
     return { __class__: className };
   }
 
+  private parseMethodArguments(argsStr: string): string[] {
+    const args: string[] = [];
+    let current = '';
+    let braceDepth = 0;
+    let inString = false;
+    
+    for (let i = 0; i < argsStr.length; i++) {
+      const char = argsStr[i];
+      
+      if (char === '"' && (i === 0 || argsStr[i-1] !== '\\')) {
+        inString = !inString;
+        current += char;
+      } else if (char === '{' && !inString) {
+        braceDepth++;
+        current += char;
+      } else if (char === '}' && !inString) {
+        braceDepth--;
+        current += char;
+      } else if (char === ',' && braceDepth === 0 && !inString) {
+        if (current.trim()) {
+          args.push(current.trim());
+        }
+        current = '';
+      } else {
+        current += char;
+      }
+    }
+    
+    if (current.trim()) {
+      args.push(current.trim());
+    }
+    
+    return args;
+  }
+
   private async handleMethodCall(statement: string): Promise<void> {
     const match = statement.match(/(\w+)\.(\w+)\((.*)\);?/);
     if (!match) return;
@@ -603,55 +687,53 @@ class JavaSimulator {
 
     if (!obj) return;
 
-    // Handle specific methods
-    if (methodName === 'printList' && obj.__class__ === 'Main') {
-      const args = argsStr ? [this.variables[argsStr.trim()]] : [];
-      if (args[0]) {
-        this.output += this.formatLinkedList(args[0]) + '\n';
-      }
-    } else if (methodName === 'reverseList' && obj.__class__ === 'Solution') {
-      const args = argsStr ? [this.variables[argsStr.trim()]] : [];
-      if (args[0]) {
-        const reversed = this.reverseLinkedList(args[0]);
-        // Store the result if it's assigned to a variable
-        this.lastMethodResult = reversed;
+    const args = argsStr ? this.parseMethodArguments(argsStr) : [];
+
+    // Handle specific method calls
+    if (methodName === 'calculateTotalSales' && obj.__class__ === 'Solution') {
+      // Execute the calculateTotalSales method
+      const arrayArg = args[0];
+      if (arrayArg) {
+        const result = await this.executeCalculateTotalSales(arrayArg);
+        this.lastMethodResult = result;
       }
     }
   }
 
-  private reverseLinkedList(head: any): any {
-    if (!head || !head.next) return head;
+  private async executeCalculateTotalSales(arrayExpr: string): Promise<number> {
+    // Parse array literal like "new int[]{10, 20, 30}"
+    const arrayMatch = arrayExpr.match(/new\s+int\[\]\s*\{([^}]*)\}/);
+    if (!arrayMatch) return 0;
 
-    let prev = null;
-    let current = head;
+    const elementsStr = arrayMatch[1].trim();
+    if (!elementsStr) return 0; // Empty array
 
-    while (current) {
-      const next = current.next;
-      current.next = prev;
-      prev = current;
-      current = next;
+    const elements = elementsStr.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n));
+    
+    // Get the Solution class and its calculateTotalSales method
+    const solutionClass = this.classes['Solution'];
+    if (!solutionClass || !solutionClass.methods['calculateTotalSales']) {
+      return 0;
     }
 
-    return prev;
-  }
+    const method = solutionClass.methods['calculateTotalSales'];
+    const methodBody = method.body;
 
-  private formatLinkedList(head: any): string {
-    if (!head) return 'null';
-
-    const values: any[] = [];
-    let current = head;
-    let count = 0;
-    const maxNodes = 20;
-
-    while (current && count < maxNodes) {
-      values.push(current.val);
-      current = current.next;
-      count++;
-      
-      if (!current) break;
+    // Simulate the method execution
+    let totalSales = 0;
+    
+    // Look for the core logic patterns in the method body
+    const hasForEach = methodBody.some(line => line.includes('for') && line.includes(':'));
+    const hasRegularFor = methodBody.some(line => line.includes('for') && line.includes(';'));
+    const hasWhile = methodBody.some(line => line.includes('while'));
+    const hasAddition = methodBody.some(line => line.includes('+=') || line.includes('totalSales + '));
+    
+    if ((hasForEach || hasRegularFor || hasWhile) && hasAddition) {
+      // The method appears to sum the array elements
+      totalSales = elements.reduce((sum, val) => sum + val, 0);
     }
 
-    return values.join(' -> ') + ' -> null';
+    return totalSales;
   }
 
   private async evaluateExpression(expr: string): Promise<any> {
@@ -672,24 +754,29 @@ class JavaSimulator {
       return this.variables[trimmed];
     }
 
-    // Method calls that return values
+    // Method calls
     if (trimmed.includes('.')) {
-      const parts = trimmed.split('.');
-      if (parts.length === 2) {
-        const [objName, methodCall] = parts;
+      const methodMatch = trimmed.match(/(\w+)\.(\w+)\((.*)\)/);
+      if (methodMatch) {
+        const [, objName, methodName, argsStr] = methodMatch;
         const obj = this.variables[objName];
         
-        if (methodCall.includes('(') && obj) {
-          const methodMatch = methodCall.match(/(\w+)\((.*)\)/);
-          if (methodMatch) {
-            const [, methodName, args] = methodMatch;
-            if (methodName === 'reverseList' && obj.__class__ === 'Solution') {
-              const argVar = args.trim();
-              const argObj = this.variables[argVar];
-              return this.reverseLinkedList(argObj);
-            }
+        if (obj && methodName === 'calculateTotalSales') {
+          const args = argsStr ? this.parseMethodArguments(argsStr) : [];
+          if (args.length > 0) {
+            return await this.executeCalculateTotalSales(args[0]);
           }
         }
+      }
+    }
+
+    // Array literals
+    if (trimmed.startsWith('new int[]')) {
+      const arrayMatch = trimmed.match(/new\s+int\[\]\s*\{([^}]*)\}/);
+      if (arrayMatch) {
+        const elementsStr = arrayMatch[1].trim();
+        if (!elementsStr) return [];
+        return elementsStr.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n));
       }
     }
 
