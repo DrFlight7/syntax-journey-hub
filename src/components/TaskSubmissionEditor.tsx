@@ -367,13 +367,11 @@ class JavaSimulator {
   private variables: { [key: string]: any } = {};
   private classes: { [key: string]: any } = {};
   private output: string = '';
-  private methodResults: { [key: string]: any } = {}; // Store method results
 
   async execute(code: string): Promise<string> {
     this.variables = {};
     this.classes = {};
     this.output = '';
-    this.methodResults = {};
 
     try {
       await this.parseAndExecute(code);
@@ -531,18 +529,22 @@ class JavaSimulator {
     if (content.includes('+')) {
       const parts = this.parseStringConcatenation(content);
       for (const part of parts) {
-        if (part.startsWith('"') && part.endsWith('"')) {
+        const trimmedPart = part.trim();
+        
+        if (trimmedPart.startsWith('"') && trimmedPart.endsWith('"')) {
           // String literal
-          output += part.slice(1, -1);
-        } else if (this.variables[part.trim()]) {
+          output += trimmedPart.slice(1, -1);
+        } else if (this.variables[trimmedPart]) {
           // Variable
-          output += this.variables[part.trim()];
-        } else if (part.includes('.')) {
-          // Method call or field access
-          const result = await this.evaluateExpression(part.trim());
+          output += this.variables[trimmedPart];
+        } else if (trimmedPart.includes('.') && trimmedPart.includes('(')) {
+          // Method call - evaluate it properly
+          const result = await this.evaluateMethodCall(trimmedPart);
           output += result;
         } else {
-          output += part.replace(/"/g, '').trim();
+          // Other expressions or literals
+          const evaluated = await this.evaluateExpression(trimmedPart);
+          output += evaluated;
         }
       }
     } else if (content.startsWith('"') && content.endsWith('"')) {
@@ -779,7 +781,7 @@ class JavaSimulator {
 
   private async evaluateMethodCall(methodCallExpr: string): Promise<any> {
     const methodMatch = methodCallExpr.match(/(\w+)\.(\w+)\((.*)\)/);
-    if (!methodMatch) return methodCallExpr;
+    if (!methodMatch) return 0;
 
     const [, objName, methodName, argsStr] = methodMatch;
     const obj = this.variables[objName];
@@ -787,11 +789,12 @@ class JavaSimulator {
     if (obj && methodName === 'calculateTotalSales') {
       const args = argsStr ? this.parseMethodArguments(argsStr) : [];
       if (args.length > 0) {
-        return await this.executeCalculateTotalSales(args[0]);
+        const result = await this.executeCalculateTotalSales(args[0]);
+        return result;
       }
     }
     
-    return methodCallExpr;
+    return 0;
   }
 }
 
