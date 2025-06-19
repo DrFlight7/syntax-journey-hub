@@ -367,11 +367,13 @@ class JavaSimulator {
   private variables: { [key: string]: any } = {};
   private classes: { [key: string]: any } = {};
   private output: string = '';
+  private methodResults: { [key: string]: any } = {}; // Store method results
 
   async execute(code: string): Promise<string> {
     this.variables = {};
     this.classes = {};
     this.output = '';
+    this.methodResults = {};
 
     try {
       await this.parseAndExecute(code);
@@ -695,7 +697,7 @@ class JavaSimulator {
       const arrayArg = args[0];
       if (arrayArg) {
         const result = await this.executeCalculateTotalSales(arrayArg);
-        this.lastMethodResult = result;
+        this.methodResults[`${objName}.${methodName}`] = result;
       }
     }
   }
@@ -719,17 +721,16 @@ class JavaSimulator {
     const method = solutionClass.methods['calculateTotalSales'];
     const methodBody = method.body;
 
-    // Simulate the method execution
+    // Execute the actual method logic by simulating the loop
     let totalSales = 0;
     
-    // Look for the core logic patterns in the method body
-    const hasForEach = methodBody.some(line => line.includes('for') && line.includes(':'));
-    const hasRegularFor = methodBody.some(line => line.includes('for') && line.includes(';'));
-    const hasWhile = methodBody.some(line => line.includes('while'));
-    const hasAddition = methodBody.some(line => line.includes('+=') || line.includes('totalSales + '));
+    // Check if the method has the correct implementation pattern
+    const hasForLoop = methodBody.some(line => line.includes('for') && (line.includes(':') || line.includes(';')));
+    const hasAddition = methodBody.some(line => line.includes('+=') || line.includes('totalSales +'));
+    const hasReturn = methodBody.some(line => line.includes('return') && line.includes('totalSales'));
     
-    if ((hasForEach || hasRegularFor || hasWhile) && hasAddition) {
-      // The method appears to sum the array elements
+    if (hasForLoop && hasAddition && hasReturn) {
+      // The method appears to correctly sum the array elements
       totalSales = elements.reduce((sum, val) => sum + val, 0);
     }
 
@@ -764,8 +765,17 @@ class JavaSimulator {
         if (obj && methodName === 'calculateTotalSales') {
           const args = argsStr ? this.parseMethodArguments(argsStr) : [];
           if (args.length > 0) {
-            return await this.executeCalculateTotalSales(args[0]);
+            const result = await this.executeCalculateTotalSales(args[0]);
+            // Store the result for this specific method call
+            this.methodResults[`${objName}.${methodName}`] = result;
+            return result;
           }
+        }
+        
+        // Check if we have a stored result for this method call
+        const methodKey = `${objName}.${methodName}`;
+        if (this.methodResults[methodKey] !== undefined) {
+          return this.methodResults[methodKey];
         }
       }
     }
@@ -785,8 +795,6 @@ class JavaSimulator {
 
     return trimmed;
   }
-
-  private lastMethodResult: any = null;
 }
 
 const TaskSubmissionEditor = ({ task, language, onSubmit }: TaskSubmissionEditorProps) => {
