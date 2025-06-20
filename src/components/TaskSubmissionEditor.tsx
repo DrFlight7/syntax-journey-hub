@@ -362,6 +362,7 @@ class PythonSimulator {
   }
 }
 
+// --- START OF CORRECTED CODE ---
 // Enhanced Java simulator for Array Sum Calculator and other Java tasks
 class JavaSimulator {
   private variables: { [key: string]: any } = {};
@@ -613,6 +614,8 @@ class JavaSimulator {
       if (objMatch) {
         const [, className, args] = objMatch;
         this.variables[varName] = await this.createObject(className, args);
+      } else {
+         this.variables[varName] = await this.evaluateExpression(value);
       }
     } else {
       // Simple assignment or method call
@@ -634,10 +637,10 @@ class JavaSimulator {
     if (className === 'ListNode') {
       const obj: any = { __class__: 'ListNode', val: null, next: null };
       if (args.length > 0) {
-        obj.val = await args[0];
+        obj.val = await this.evaluateExpression(args[0]);
       }
       if (args.length > 1) {
-        obj.next = await args[1];
+        obj.next = await this.evaluateExpression(args[1]);
       }
       return obj;
     } else if (className === 'Solution') {
@@ -695,27 +698,26 @@ class JavaSimulator {
 
     // Handle specific method calls
     if (methodName === 'calculateTotalSales' && obj.__class__ === 'Solution') {
-      // Execute the calculateTotalSales method
       const arrayArg = args[0];
       if (arrayArg) {
-        const result = await this.executeCalculateTotalSales(arrayArg);
+        // FIX: Evaluate the argument expression to get its actual value.
+        const evaluatedArg = await this.evaluateExpression(arrayArg);
+        const result = await this.executeCalculateTotalSales(evaluatedArg);
+
         // Store result in a way that can be accessed later if needed
         obj[`_lastResult_${methodName}`] = result;
       }
     }
   }
 
-  private async executeCalculateTotalSales(arrayExpr: string): Promise<number> {
-    // Parse array literal like "new int[]{10, 20, 30}"
-    const arrayMatch = arrayExpr.match(/new\s+int\[\]\s*\{([^}]*)\}/);
-    if (!arrayMatch) return 0;
+  private async executeCalculateTotalSales(salesData: any): Promise<number> {
+    // FIX: The argument should be an array. If not, we can't process it.
+    if (!Array.isArray(salesData)) {
+      return 0;
+    }
 
-    const elementsStr = arrayMatch[1].trim();
-    if (!elementsStr) return 0; // Empty array
-
-    const elements = elementsStr.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n));
+    const elements = salesData.filter(n => typeof n === 'number');
     
-    // Get the Solution class and its calculateTotalSales method
     const solutionClass = this.classes['Solution'];
     if (!solutionClass || !solutionClass.methods['calculateTotalSales']) {
       return 0;
@@ -727,7 +729,6 @@ class JavaSimulator {
     // Execute the actual method logic by simulating the loop
     let totalSales = 0;
     
-    // Check if the method has the correct implementation pattern
     const hasForLoop = methodBody.some(line => line.includes('for') && (line.includes(':') || line.includes(';')));
     const hasAddition = methodBody.some(line => line.includes('+=') || line.includes('totalSales +'));
     const hasReturn = methodBody.some(line => line.includes('return') && line.includes('totalSales'));
@@ -743,27 +744,22 @@ class JavaSimulator {
   private async evaluateExpression(expr: string): Promise<any> {
     const trimmed = expr.trim();
 
-    // String literals
     if (trimmed.startsWith('"') && trimmed.endsWith('"')) {
       return trimmed.slice(1, -1);
     }
 
-    // Numbers
     if (!isNaN(Number(trimmed))) {
       return Number(trimmed);
     }
 
-    // Variables
     if (this.variables[trimmed]) {
       return this.variables[trimmed];
     }
 
-    // Method calls
     if (trimmed.includes('.') && trimmed.includes('(')) {
       return await this.evaluateMethodCall(trimmed);
     }
 
-    // Array literals
     if (trimmed.startsWith('new int[]')) {
       const arrayMatch = trimmed.match(/new\s+int\[\]\s*\{([^}]*)\}/);
       if (arrayMatch) {
@@ -773,7 +769,6 @@ class JavaSimulator {
       }
     }
 
-    // Null
     if (trimmed === 'null') return null;
 
     return trimmed;
@@ -789,7 +784,9 @@ class JavaSimulator {
     if (obj && methodName === 'calculateTotalSales') {
       const args = argsStr ? this.parseMethodArguments(argsStr) : [];
       if (args.length > 0) {
-        const result = await this.executeCalculateTotalSales(args[0]);
+        // FIX: Evaluate the argument expression to get its actual value (the array).
+        const evaluatedArg = await this.evaluateExpression(args[0]);
+        const result = await this.executeCalculateTotalSales(evaluatedArg);
         return result;
       }
     }
@@ -797,6 +794,7 @@ class JavaSimulator {
     return 0;
   }
 }
+// --- END OF CORRECTED CODE ---
 
 const TaskSubmissionEditor = ({ task, language, onSubmit }: TaskSubmissionEditorProps) => {
   const [code, setCode] = useState('');
