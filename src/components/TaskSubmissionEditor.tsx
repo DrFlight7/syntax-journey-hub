@@ -27,7 +27,7 @@ interface TaskSubmissionEditorProps {
   onSubmit: (code: string) => Promise<boolean>;
 }
 
-// NOTE: PythonSimulator is unchanged and correct. Included for completeness.
+// NOTE: PythonSimulator is unchanged as requested.
 class PythonSimulator {
   private variables: { [key: string]: any } = {};
   private classes: { [key: string]: any } = {};
@@ -272,11 +272,12 @@ class PythonSimulator {
   }
 }
 
-// --- START OF CORRECTED JavaSimulator ---
+// --- START OF CORRECTED AND IMPROVED JavaSimulator ---
 class JavaSimulator {
   private variables: { [key: string]: any } = {};
-  private classes: { [key: string]: any } = {};
   private output: string = '';
+  // Stores parsed class structures for more advanced simulation
+  private classes: { [key: string]: any } = {};
 
   async execute(code: string): Promise<string> {
     this.variables = {};
@@ -284,244 +285,208 @@ class JavaSimulator {
     this.output = '';
 
     try {
-      await this.parseAndExecute(code);
-      return this.output || 'Code executed successfully!';
+      // First, parse the entire structure of the code to understand classes and methods
+      this.parseClasses(code);
+      // Then, find and execute the main method
+      await this.findAndExecuteMain(code);
+      
+      // If there was no System.out.print but the code ran, provide a success message.
+      return this.output || 'Code executed successfully with no output.';
     } catch (error) {
-      return `Execution error: ${error}`;
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      return `Execution Error: ${errorMessage}`;
     }
   }
 
-  private async parseAndExecute(code: string): Promise<void> {
-    const lines = code.split('\n');
-    let i = 0;
-    let inMainMethod = false;
-    let inClass = false;
-    let currentClassName = '';
-    let braceDepth = 0;
-
-    while (i < lines.length) {
-      const line = lines[i].trim();
-      
-      if (!line || line.startsWith('//')) {
-        i++;
-        continue;
-      }
-
-      braceDepth += (line.match(/{/g) || []).length;
-      braceDepth -= (line.match(/}/g) || []).length;
-
-      if (line.includes('class ') && line.includes('{')) {
-        const classMatch = line.match(/(?:public\s+)?class\s+(\w+)/);
-        if (classMatch) {
-          currentClassName = classMatch[1];
-          inClass = true;
-          this.classes[currentClassName] = { name: currentClassName, methods: {}, fields: {} };
-        }
-      }
-
-      if (inClass && currentClassName && line.includes('public ') && line.includes('(') && line.includes(')')) {
-        const methodMatch = line.match(/public\s+([\w\[\]]+)\s+(\w+)\s*\(([^)]*)\)/);
-        if (methodMatch) {
-          const [, returnType, methodName, params] = methodMatch;
-          const methodBody: string[] = [];
-          let methodBraceDepth = (line.match(/{/g) || []).length;
-          let j = i;
-          if (!line.includes('{')) {
-            while(j < lines.length && !lines[j].includes('{')) j++;
-          }
-
-          if (j < lines.length && lines[j].includes('{')) {
-              methodBraceDepth = 1;
-              j++;
-              while (j < lines.length && methodBraceDepth > 0) {
-                const methodLine = lines[j];
-                methodBraceDepth += (methodLine.match(/{/g) || []).length;
-                methodBraceDepth -= (methodLine.match(/}/g) || []).length;
-                if (methodBraceDepth > 0) methodBody.push(methodLine.trim());
-                j++;
-              }
-          }
-          this.classes[currentClassName].methods[methodName] = { returnType, params, body: methodBody };
-        }
-      }
-      
-      if (line.includes('public static void main')) {
-        inMainMethod = true;
-      }
-
-      if (inMainMethod && braceDepth > 0 && line !== '{' && !line.includes('public static void main')) {
-        await this.executeStatement(line);
-      }
-      
-      if (braceDepth === 0) {
-        if (inMainMethod) inMainMethod = false;
-        if (inClass) inClass = false;
-      }
-
-      i++;
+  private parseClasses(code: string): void {
+    // This regex is a simplified parser. It finds text between "class ClassName {" and the matching "}"
+    const classRegex = /class\s+(\w+)\s*\{([\s\S]*?)\n\}/g;
+    let match;
+    while ((match = classRegex.exec(code)) !== null) {
+        const [, className, classBody] = match;
+        this.classes[className] = { 
+            name: className, 
+            methods: this.parseMethods(classBody) 
+        };
     }
   }
 
-  private async executeStatement(line: string): Promise<void> {
-    const trimmed = line.trim();
-    if (trimmed.includes('System.out.print')) {
-      await this.handlePrint(trimmed);
-    } else if (this.isVariableDeclaration(trimmed)) {
-      await this.handleVariableDeclaration(trimmed);
-    } else if (trimmed.includes('.') && trimmed.endsWith(';')) {
-      await this.handleMethodCall(trimmed);
+  private parseMethods(classBody: string): any {
+    const methods: { [key: string]: any } = {};
+    // Regex to find methods like: public int calculateTotalSales(int[] sales) { ...body... }
+    const methodRegex = /public\s+(static\s+)?([\w<>\[\]]+)\s+(\w+)\s*\(([^)]*)\)\s*\{([\s\S]*?)\n\s*\}/g;
+    let match;
+    while ((match = methodRegex.exec(classBody)) !== null) {
+      // Extracts the body of the method as a single string for pattern matching
+      const [, , returnType, methodName, params, body] = match;
+      methods[methodName] = { returnType, params, body };
+    }
+    return methods;
+  }
+
+  private async findAndExecuteMain(code: string): Promise<void> {
+    const mainMethodRegex = /public\s+static\s+void\s+main\s*\((?:String\[\]\s+\w+|String\s+\w+\[\])\)\s*\{([\s\S]*?)\n\s*\}/;
+    const mainMatch = code.match(mainMethodRegex);
+
+    if (!mainMatch) {
+      // If there's no main method, we can't run anything.
+      // This is expected for tasks where the user only implements a method, so we just return.
+      return;
+    }
+
+    const mainBody = mainMatch[1];
+    // A simple way to get executable statements from the main method
+    const statements = mainBody.split(';').map(s => s.trim()).filter(Boolean);
+    
+    for (const statement of statements) {
+      await this.executeStatement(statement);
     }
   }
 
-  private async handlePrint(statement: string): Promise<void> {
-    const printMatch = statement.match(/System\.out\.print(?:ln)?\((.*)\);?/);
-    if (!printMatch) return;
-    const content = printMatch[1];
-    let output = '';
-
-    if (content.includes('+')) {
-      const parts = this.parseStringConcatenation(content);
-      for (const part of parts) {
-        output += await this.evaluateExpression(part);
-      }
-    } else {
-      output = await this.evaluateExpression(content);
+  private async executeStatement(statement: string): Promise<void> {
+    if (statement.startsWith('System.out.print')) {
+      await this.handlePrint(statement);
+    } else if (this.isVariableDeclaration(statement)) {
+      await this.handleVariableDeclaration(statement);
+    } else if (statement.includes('=')) { // Handle assignment to existing variables
+        await this.handleAssignment(statement);
+    } else if (statement.includes('.')) { // Handle method calls that don't assign
+        await this.evaluateExpression(statement);
     }
-
-    this.output += output + (statement.includes('println') ? '\n' : '');
   }
-
-  private parseStringConcatenation(content: string): string[] {
-    const parts: string[] = [];
-    let current = '';
-    let inString = false;
-    for (const char of content) {
-      if (char === '"') inString = !inString;
-      if (char === '+' && !inString) {
-        if (current.trim()) parts.push(current.trim());
-        current = '';
-      } else {
-        current += char;
-      }
-    }
-    if (current.trim()) parts.push(current.trim());
-    return parts;
-  }
-
-  // FIX #1: More robust check for variable declarations, including arrays.
+  
   private isVariableDeclaration(statement: string): boolean {
-    const typeRegex = /^\s*([\w\[\]]+)\s+(\w+)\s*=/;
+    // Matches "int x", "int[] y", "String z" at the start of a line
+    const typeRegex = /^\s*([\w\[\]]+)\s+(\w+)/;
     return typeRegex.test(statement);
   }
 
   private async handleVariableDeclaration(statement: string): Promise<void> {
-    // FIX #2: Regex now correctly captures array types like 'int[]'.
-    const match = statement.match(/^\s*([\w\[\]]+)\s+(\w+)\s*=\s*(.+);?/);
+    // Regex captures type, name, and optionally the value being assigned
+    const match = statement.match(/^\s*([\w\[\]]+)\s+(\w+)(?:\s*=\s*(.+))?$/);
     if (!match) return;
 
     const [, type, varName, valueExpr] = match;
-    this.variables[varName] = await this.evaluateExpression(valueExpr);
-  }
-
-  private async handleObjectCreation(className: string, argsStr: string): Promise<any> {
-    const args = argsStr ? this.parseMethodArguments(argsStr) : [];
-    const evaluatedArgs = await Promise.all(args.map(arg => this.evaluateExpression(arg)));
-    
-    if (className === 'ListNode') {
-      return { __class__: 'ListNode', val: evaluatedArgs[0] ?? null, next: evaluatedArgs[1] ?? null };
-    }
-    return { __class__: className };
-  }
-
-  private parseMethodArguments(argsStr: string): string[] {
-    const args: string[] = [];
-    let current = '';
-    let parenDepth = 0;
-    let braceDepth = 0;
-    for (const char of argsStr) {
-      if (char === '(') parenDepth++;
-      if (char === ')') parenDepth--;
-      if (char === '{') braceDepth++;
-      if (char === '}') braceDepth--;
-      if (char === ',' && parenDepth === 0 && braceDepth === 0) {
-        args.push(current.trim());
-        current = '';
-      } else {
-        current += char;
-      }
-    }
-    if (current.trim()) args.push(current.trim());
-    return args;
-  }
-
-  private async handleMethodCall(statement: string): Promise<void> {
-    const match = statement.match(/(\w+)\.(\w+)\((.*)\);?/);
-    if (!match) return;
-    const [, objName, methodName, argsStr] = match;
-    const obj = this.variables[objName];
-    if (!obj) return;
-    const args = argsStr ? this.parseMethodArguments(argsStr) : [];
-    const evaluatedArgs = await Promise.all(args.map(arg => this.evaluateExpression(arg)));
-
-    if (methodName === 'calculateTotalSales' && obj.__class__ === 'Solution') {
-      obj[`_lastResult_${methodName}`] = await this.executeCalculateTotalSales(evaluatedArgs[0]);
-    }
-  }
-
-  private async executeCalculateTotalSales(salesData: any): Promise<number> {
-    if (!Array.isArray(salesData)) return 0;
-    const solutionClass = this.classes['Solution'];
-    if (!solutionClass || !solutionClass.methods['calculateTotalSales']) return 0;
-    const method = solutionClass.methods['calculateTotalSales'];
-    const hasForLoop = method.body.some(line => line.includes('for') && (line.includes(':') || line.includes(';')));
-    const hasAddition = method.body.some(line => line.includes('+=') || line.includes('totalSales +'));
-    const hasReturn = method.body.some(line => line.includes('return') && line.includes('totalSales'));
-    if (hasForLoop && hasAddition && hasReturn) {
-      return salesData.reduce((sum, val) => sum + val, 0);
-    }
-    return 0;
+    this.variables[varName] = valueExpr ? await this.evaluateExpression(valueExpr) : null;
   }
   
+  private async handleAssignment(statement: string): Promise<void> {
+    const match = statement.match(/^\s*(\w+)\s*=\s*(.+)$/);
+    if (!match) return;
+    const [, varName, valueExpr] = match;
+    // Only assign if the variable was already declared
+    if (this.variables.hasOwnProperty(varName)) {
+        this.variables[varName] = await this.evaluateExpression(valueExpr);
+    }
+  }
+
+  private async handlePrint(statement: string): Promise<void> {
+    const printMatch = statement.match(/System\.out\.print(?:ln)?\((.*)\)/);
+    if (!printMatch) return;
+
+    const content = printMatch[1].trim();
+    let valueToPrint = '';
+    
+    // Handle string concatenation with the '+' operator
+    if (content.includes('+')) {
+        const parts = content.split('+').map(p => p.trim());
+        const evaluatedParts = await Promise.all(parts.map(p => this.evaluateExpression(p)));
+        valueToPrint = evaluatedParts.join('');
+    } else {
+        valueToPrint = await this.evaluateExpression(content);
+    }
+
+    this.output += valueToPrint + (statement.includes('println') ? '\n' : '');
+  }
+
   private async evaluateExpression(expr: string): Promise<any> {
     const trimmed = expr.trim();
-    if (trimmed.startsWith('"') && trimmed.endsWith('"')) return trimmed.slice(1, -1);
-    if (!isNaN(Number(trimmed))) return Number(trimmed);
-    if (this.variables[trimmed]) return this.variables[trimmed];
+
+    // Case 1: A string literal like "Hello"
+    if (trimmed.startsWith('"') && trimmed.endsWith('"')) {
+      return trimmed.slice(1, -1);
+    }
+
+    // Case 2: A number literal like 123 or 45.6
+    if (!isNaN(Number(trimmed))) {
+      return Number(trimmed);
+    }
+
+    // Case 3: A variable name like `myVar`
+    if (this.variables[trimmed] !== undefined) {
+      return this.variables[trimmed];
+    }
+    
+    // Case 4: An object creation expression starting with `new`
     if (trimmed.startsWith('new ')) {
-        const arrayMatch = trimmed.match(/new\s+int\[\]\s*\{([^}]*)\}/);
+        // Sub-case 4a: Array creation, e.g., `new int[] {1, 2, 3}`
+        const arrayMatch = trimmed.match(/new\s+\w+\[\]\s*\{([^}]*)\}/);
         if (arrayMatch) {
             const elementsStr = arrayMatch[1].trim();
             if (!elementsStr) return [];
-            return elementsStr.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n));
+            return elementsStr.split(',').map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n));
         }
+        
+        // Sub-case 4b: Object creation, e.g., `new Solution()`
         const objMatch = trimmed.match(/new\s+(\w+)\((.*)\)/);
         if (objMatch) {
-            const [, className, args] = objMatch;
-            return await this.handleObjectCreation(className, args);
+            const [, className] = objMatch;
+            return { __class__: className }; // Return a mock object representing the class instance
         }
     }
-    if (trimmed.includes('.') && trimmed.includes('(')) return await this.evaluateMethodCall(trimmed);
-    if (trimmed === 'null') return null;
-    return trimmed;
-  }
 
-  private async evaluateMethodCall(methodCallExpr: string): Promise<any> {
-    const methodMatch = methodCallExpr.match(/([\w.]+)\.(\w+)\((.*)\)/);
-    if (!methodMatch) return 0;
-    const [, objExpr, methodName, argsStr] = methodMatch;
-    const obj = await this.evaluateExpression(objExpr);
-    if (!obj) return 0;
-
-    const args = argsStr ? this.parseMethodArguments(argsStr) : [];
-    const evaluatedArgs = await Promise.all(args.map(arg => this.evaluateExpression(arg)));
-
-    if (obj.__class__ === 'Solution' && methodName === 'calculateTotalSales') {
-      return await this.executeCalculateTotalSales(evaluatedArgs[0]);
+    // Case 5: A method call, e.g., `solution.calculateTotalSales(salesData)`
+    const methodCallMatch = trimmed.match(/(\w+)\.(\w+)\((.*)\)/);
+    if (methodCallMatch) {
+        const [, objName, methodName, argsStr] = methodCallMatch;
+        const obj = this.variables[objName];
+        if (!obj || obj.__class__ !== 'Solution') {
+            throw new Error(`Object '${objName}' not found or is not a 'Solution' object.`);
+        }
+        
+        // This is the plug-in point for task-specific validators
+        if (methodName === 'calculateTotalSales') {
+            const args = await Promise.all(argsStr.split(',').map(arg => this.evaluateExpression(arg.trim())));
+            return this.validateAndRun_calculateTotalSales(args[0]);
+        }
     }
-    return 0;
+    
+    // If we can't figure it out, return the expression as-is
+    return trimmed; 
+  }
+  
+  // This is your specific validator for one task.
+  // It first VALIDATES the user's code, then RUNS a trusted implementation.
+  private validateAndRun_calculateTotalSales(salesData: number[]): number {
+    if (!Array.isArray(salesData)) {
+      throw new Error("Input to calculateTotalSales must be an array of numbers.");
+    }
+    
+    const solutionClass = this.classes['Solution'];
+    if (!solutionClass || !solutionClass.methods['calculateTotalSales']) {
+        throw new Error("Method 'calculateTotalSales' not found in class 'Solution'.");
+    }
+
+    const methodBody = solutionClass.methods['calculateTotalSales'].body;
+    
+    // --- Validation Checks on the user's source code ---
+    const hasLoop = /for\s*\(/.test(methodBody);
+    const hasEnhancedLoop = /for\s*\([\w\s]+:/.test(methodBody);
+    const usesAddition = /\+=|\+\s*\w+/.test(methodBody);
+    const returnsSomething = /return\s+\w+/.test(methodBody);
+    
+    if (!((hasLoop || hasEnhancedLoop) && usesAddition && returnsSomething)) {
+        this.output += "Hint: Your solution should use a loop to sum the elements and return the total.\n";
+        return 0; // Return a "wrong" answer if the pattern doesn't match
+    }
+    
+    // --- Trusted Execution ---
+    // If validation passes, we run the CORRECT code using trusted JavaScript.
+    return salesData.reduce((sum, current) => sum + current, 0);
   }
 }
 // --- END OF CORRECTED JavaSimulator ---
+
 
 const TaskSubmissionEditor = ({ task, language, onSubmit }: TaskSubmissionEditorProps) => {
   const [code, setCode] = useState('');
