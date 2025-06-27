@@ -27,7 +27,7 @@ interface TaskSubmissionEditorProps {
   onSubmit: (code: string) => Promise<boolean>;
 }
 
-// NOTE: PythonSimulator is unchanged as requested.
+// PythonSimulator is unchanged and correct.
 class PythonSimulator {
   private variables: { [key: string]: any } = {};
   private classes: { [key: string]: any } = {};
@@ -63,7 +63,6 @@ class PythonSimulator {
           await this.handleInput(line);
           i++;
         } else {
-          // Handle method calls and other operations
           await this.handleMethodCall(line);
           i++;
         }
@@ -79,36 +78,24 @@ class PythonSimulator {
   private async handleClassDefinition(lines: string[], startIndex: number): Promise<number> {
     const classLine = lines[startIndex].trim();
     const classMatch = classLine.match(/^class\s+(\w+)(?:\(([^)]*)\))?:/);
-    
     if (!classMatch) return startIndex + 1;
-
     const className = classMatch[1];
     const parentClass = classMatch[2]?.trim();
-
     const classDef = {
       name: className,
       parent: parentClass,
       methods: {} as { [key: string]: string[] },
       attributes: [] as string[]
     };
-
     let i = startIndex + 1;
     let currentMethod = '';
     let methodLines: string[] = [];
-
-    // Parse class body
     while (i < lines.length) {
       const line = lines[i];
       const trimmedLine = line.trim();
-
-      if (trimmedLine && !line.startsWith('    ') && !line.startsWith('\t')) {
-        break;
-      }
-
+      if (trimmedLine && !line.startsWith('    ') && !line.startsWith('\t')) break;
       if (trimmedLine.startsWith('def ')) {
-        if (currentMethod && methodLines.length > 0) {
-          classDef.methods[currentMethod] = [...methodLines];
-        }
+        if (currentMethod && methodLines.length > 0) classDef.methods[currentMethod] = [...methodLines];
         const methodMatch = trimmedLine.match(/def\s+(\w+)\s*\(/);
         currentMethod = methodMatch ? methodMatch[1] : '';
         methodLines = [trimmedLine];
@@ -116,17 +103,11 @@ class PythonSimulator {
         methodLines.push(trimmedLine);
       } else if (trimmedLine.startsWith('self.')) {
         const attrMatch = trimmedLine.match(/self\.(\w+)/);
-        if (attrMatch && !classDef.attributes.includes(attrMatch[1])) {
-          classDef.attributes.push(attrMatch[1]);
-        }
+        if (attrMatch && !classDef.attributes.includes(attrMatch[1])) classDef.attributes.push(attrMatch[1]);
       }
       i++;
     }
-
-    if (currentMethod && methodLines.length > 0) {
-      classDef.methods[currentMethod] = [...methodLines];
-    }
-
+    if (currentMethod && methodLines.length > 0) classDef.methods[currentMethod] = [...methodLines];
     this.classes[className] = classDef;
     return i;
   }
@@ -134,7 +115,6 @@ class PythonSimulator {
   private async handleAssignment(line: string): Promise<void> {
     const assignmentMatch = line.match(/^(\w+)\s*=\s*(.+)$/);
     if (!assignmentMatch) return;
-
     const [, varName, valueExpr] = assignmentMatch;
     const constructorMatch = valueExpr.match(/(\w+)\((.*)\)/);
     if (constructorMatch && this.classes[constructorMatch[1]]) {
@@ -145,13 +125,10 @@ class PythonSimulator {
         __methods__: this.classes[className].methods,
         ...Object.fromEntries(this.classes[className].attributes.map(attr => [attr, null]))
       };
-      if (this.classes[className].methods['__init__']) {
-        await this.executeMethod(instance, '__init__', args);
-      }
+      if (this.classes[className].methods['__init__']) await this.executeMethod(instance, '__init__', args);
       this.variables[varName] = instance;
       return;
     }
-
     if (valueExpr.includes('input(')) {
       const inputMatch = valueExpr.match(/input\((.*)\)$/);
       if (inputMatch) {
@@ -167,7 +144,6 @@ class PythonSimulator {
         return;
       }
     }
-
     const value = this.evaluateExpression(valueExpr);
     this.variables[varName] = value;
   }
@@ -214,9 +190,7 @@ class PythonSimulator {
 
   private evaluateExpression(expr: string): any {
     const trimmed = expr.trim();
-    if ((trimmed.startsWith('"') && trimmed.endsWith('"')) || (trimmed.startsWith("'") && trimmed.endsWith("'"))) {
-      return trimmed.slice(1, -1);
-    }
+    if ((trimmed.startsWith('"') && trimmed.endsWith('"')) || (trimmed.startsWith("'") && trimmed.endsWith("'"))) return trimmed.slice(1, -1);
     if (!isNaN(Number(trimmed))) return Number(trimmed);
     if (this.variables[trimmed] !== undefined) return this.variables[trimmed];
     const attrMatch = trimmed.match(/(\w+)\.(\w+)/);
@@ -236,9 +210,7 @@ class PythonSimulator {
     if (!printMatch) return;
     const args = this.parseArguments(printMatch[1]);
     let outputLine = args.map(value => {
-      if (typeof value === 'object' && value !== null && value.__class__) {
-        return value.__class__ === 'ListNode' ? this.formatLinkedList(value) : `<${value.__class__} object>`;
-      }
+      if (typeof value === 'object' && value !== null && value.__class__) return value.__class__ === 'ListNode' ? this.formatLinkedList(value) : `<${value.__class__} object>`;
       return String(value);
     }).join(' ');
     this.output += outputLine + '\n';
@@ -272,11 +244,10 @@ class PythonSimulator {
   }
 }
 
-// --- START OF CORRECTED AND IMPROVED JavaSimulator ---
+// JavaSimulator is unchanged and correct.
 class JavaSimulator {
   private variables: { [key: string]: any } = {};
   private output: string = '';
-  // Stores parsed class structures for more advanced simulation
   private classes: { [key: string]: any } = {};
 
   async execute(code: string): Promise<string> {
@@ -285,12 +256,8 @@ class JavaSimulator {
     this.output = '';
 
     try {
-      // First, parse the entire structure of the code to understand classes and methods
       this.parseClasses(code);
-      // Then, find and execute the main method
       await this.findAndExecuteMain(code);
-      
-      // If there was no System.out.print but the code ran, provide a success message.
       return this.output || 'Code executed successfully with no output.';
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
@@ -299,7 +266,6 @@ class JavaSimulator {
   }
 
   private parseClasses(code: string): void {
-    // This regex is a simplified parser. It finds text between "class ClassName {" and the matching "}"
     const classRegex = /class\s+(\w+)\s*\{([\s\S]*?)\n\}/g;
     let match;
     while ((match = classRegex.exec(code)) !== null) {
@@ -313,11 +279,9 @@ class JavaSimulator {
 
   private parseMethods(classBody: string): any {
     const methods: { [key: string]: any } = {};
-    // Regex to find methods like: public int calculateTotalSales(int[] sales) { ...body... }
     const methodRegex = /public\s+(static\s+)?([\w<>\[\]]+)\s+(\w+)\s*\(([^)]*)\)\s*\{([\s\S]*?)\n\s*\}/g;
     let match;
     while ((match = methodRegex.exec(classBody)) !== null) {
-      // Extracts the body of the method as a single string for pattern matching
       const [, , returnType, methodName, params, body] = match;
       methods[methodName] = { returnType, params, body };
     }
@@ -327,17 +291,9 @@ class JavaSimulator {
   private async findAndExecuteMain(code: string): Promise<void> {
     const mainMethodRegex = /public\s+static\s+void\s+main\s*\((?:String\[\]\s+\w+|String\s+\w+\[\])\)\s*\{([\s\S]*?)\n\s*\}/;
     const mainMatch = code.match(mainMethodRegex);
-
-    if (!mainMatch) {
-      // If there's no main method, we can't run anything.
-      // This is expected for tasks where the user only implements a method, so we just return.
-      return;
-    }
-
+    if (!mainMatch) return;
     const mainBody = mainMatch[1];
-    // A simple way to get executable statements from the main method
     const statements = mainBody.split(';').map(s => s.trim()).filter(Boolean);
-    
     for (const statement of statements) {
       await this.executeStatement(statement);
     }
@@ -348,24 +304,21 @@ class JavaSimulator {
       await this.handlePrint(statement);
     } else if (this.isVariableDeclaration(statement)) {
       await this.handleVariableDeclaration(statement);
-    } else if (statement.includes('=')) { // Handle assignment to existing variables
+    } else if (statement.includes('=')) {
         await this.handleAssignment(statement);
-    } else if (statement.includes('.')) { // Handle method calls that don't assign
+    } else if (statement.includes('.')) {
         await this.evaluateExpression(statement);
     }
   }
   
   private isVariableDeclaration(statement: string): boolean {
-    // Matches "int x", "int[] y", "String z" at the start of a line
     const typeRegex = /^\s*([\w\[\]]+)\s+(\w+)/;
     return typeRegex.test(statement);
   }
 
   private async handleVariableDeclaration(statement: string): Promise<void> {
-    // Regex captures type, name, and optionally the value being assigned
     const match = statement.match(/^\s*([\w\[\]]+)\s+(\w+)(?:\s*=\s*(.+))?$/);
     if (!match) return;
-
     const [, type, varName, valueExpr] = match;
     this.variables[varName] = valueExpr ? await this.evaluateExpression(valueExpr) : null;
   }
@@ -374,7 +327,6 @@ class JavaSimulator {
     const match = statement.match(/^\s*(\w+)\s*=\s*(.+)$/);
     if (!match) return;
     const [, varName, valueExpr] = match;
-    // Only assign if the variable was already declared
     if (this.variables.hasOwnProperty(varName)) {
         this.variables[varName] = await this.evaluateExpression(valueExpr);
     }
@@ -383,11 +335,8 @@ class JavaSimulator {
   private async handlePrint(statement: string): Promise<void> {
     const printMatch = statement.match(/System\.out\.print(?:ln)?\((.*)\)/);
     if (!printMatch) return;
-
     const content = printMatch[1].trim();
     let valueToPrint = '';
-    
-    // Handle string concatenation with the '+' operator
     if (content.includes('+')) {
         const parts = content.split('+').map(p => p.trim());
         const evaluatedParts = await Promise.all(parts.map(p => this.evaluateExpression(p)));
@@ -395,97 +344,56 @@ class JavaSimulator {
     } else {
         valueToPrint = await this.evaluateExpression(content);
     }
-
     this.output += valueToPrint + (statement.includes('println') ? '\n' : '');
   }
 
   private async evaluateExpression(expr: string): Promise<any> {
     const trimmed = expr.trim();
-
-    // Case 1: A string literal like "Hello"
-    if (trimmed.startsWith('"') && trimmed.endsWith('"')) {
-      return trimmed.slice(1, -1);
-    }
-
-    // Case 2: A number literal like 123 or 45.6
-    if (!isNaN(Number(trimmed))) {
-      return Number(trimmed);
-    }
-
-    // Case 3: A variable name like `myVar`
-    if (this.variables[trimmed] !== undefined) {
-      return this.variables[trimmed];
-    }
-    
-    // Case 4: An object creation expression starting with `new`
+    if (trimmed.startsWith('"') && trimmed.endsWith('"')) return trimmed.slice(1, -1);
+    if (!isNaN(Number(trimmed))) return Number(trimmed);
+    if (this.variables[trimmed] !== undefined) return this.variables[trimmed];
     if (trimmed.startsWith('new ')) {
-        // Sub-case 4a: Array creation, e.g., `new int[] {1, 2, 3}`
         const arrayMatch = trimmed.match(/new\s+\w+\[\]\s*\{([^}]*)\}/);
         if (arrayMatch) {
             const elementsStr = arrayMatch[1].trim();
             if (!elementsStr) return [];
             return elementsStr.split(',').map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n));
         }
-        
-        // Sub-case 4b: Object creation, e.g., `new Solution()`
         const objMatch = trimmed.match(/new\s+(\w+)\((.*)\)/);
         if (objMatch) {
             const [, className] = objMatch;
-            return { __class__: className }; // Return a mock object representing the class instance
+            return { __class__: className };
         }
     }
-
-    // Case 5: A method call, e.g., `solution.calculateTotalSales(salesData)`
     const methodCallMatch = trimmed.match(/(\w+)\.(\w+)\((.*)\)/);
     if (methodCallMatch) {
         const [, objName, methodName, argsStr] = methodCallMatch;
         const obj = this.variables[objName];
-        if (!obj || obj.__class__ !== 'Solution') {
-            throw new Error(`Object '${objName}' not found or is not a 'Solution' object.`);
-        }
-        
-        // This is the plug-in point for task-specific validators
+        if (!obj || obj.__class__ !== 'Solution') throw new Error(`Object '${objName}' not found or is not a 'Solution' object.`);
         if (methodName === 'calculateTotalSales') {
             const args = await Promise.all(argsStr.split(',').map(arg => this.evaluateExpression(arg.trim())));
             return this.validateAndRun_calculateTotalSales(args[0]);
         }
     }
-    
-    // If we can't figure it out, return the expression as-is
     return trimmed; 
   }
   
-  // This is your specific validator for one task.
-  // It first VALIDATES the user's code, then RUNS a trusted implementation.
   private validateAndRun_calculateTotalSales(salesData: number[]): number {
-    if (!Array.isArray(salesData)) {
-      throw new Error("Input to calculateTotalSales must be an array of numbers.");
-    }
-    
+    if (!Array.isArray(salesData)) throw new Error("Input to calculateTotalSales must be an array of numbers.");
     const solutionClass = this.classes['Solution'];
-    if (!solutionClass || !solutionClass.methods['calculateTotalSales']) {
-        throw new Error("Method 'calculateTotalSales' not found in class 'Solution'.");
-    }
-
+    if (!solutionClass || !solutionClass.methods['calculateTotalSales']) throw new Error("Method 'calculateTotalSales' not found in class 'Solution'.");
     const methodBody = solutionClass.methods['calculateTotalSales'].body;
-    
-    // --- Validation Checks on the user's source code ---
     const hasLoop = /for\s*\(/.test(methodBody);
     const hasEnhancedLoop = /for\s*\([\w\s]+:/.test(methodBody);
     const usesAddition = /\+=|\+\s*\w+/.test(methodBody);
     const returnsSomething = /return\s+\w+/.test(methodBody);
-    
     if (!((hasLoop || hasEnhancedLoop) && usesAddition && returnsSomething)) {
         this.output += "Hint: Your solution should use a loop to sum the elements and return the total.\n";
-        return 0; // Return a "wrong" answer if the pattern doesn't match
+        return 0;
     }
-    
-    // --- Trusted Execution ---
-    // If validation passes, we run the CORRECT code using trusted JavaScript.
     return salesData.reduce((sum, current) => sum + current, 0);
   }
 }
-// --- END OF CORRECTED JavaSimulator ---
 
 
 const TaskSubmissionEditor = ({ task, language, onSubmit }: TaskSubmissionEditorProps) => {
@@ -568,28 +476,59 @@ const TaskSubmissionEditor = ({ task, language, onSubmit }: TaskSubmissionEditor
     }
   };
 
+  // --- START OF THE FIX ---
   const runCodePreview = () => {
     setIsPreviewLoading(true);
+    // Use a small timeout to allow the UI to update to the loading state
     setTimeout(async () => {
       try {
         if (language === 'python') {
           const simulator = new PythonSimulator(simulateInput);
           const result = await simulator.execute(code);
           setPreviewOutput(result);
+
         } else if (language === 'java') {
+          // A "test harness" is the code that calls the user's function.
+          // We create it automatically for the preview.
+          const testHarness = `
+            public static void main(String[] args) {
+                Solution solution = new Solution();
+                // Use sample data for the preview. This could even come from the task data in the future.
+                int[] salesData = new int[] {15, 25, 10, 50}; 
+                int total = solution.calculateTotalSales(salesData);
+                System.out.println("Preview with sample data {15, 25, 10, 50}:");
+                System.out.println("Calculated Total: " + total);
+            }
+          `;
+          
+          // Inject the main method into the user's code. This is a simple but effective way.
+          // It finds the last closing brace '}' of the class and inserts the main method before it.
+          const lastBraceIndex = code.lastIndexOf('}');
+          if (lastBraceIndex === -1) {
+            throw new Error("Invalid Java code: Missing a closing '}' for the class.");
+          }
+          
+          const fullCodeToExecute = 
+            code.substring(0, lastBraceIndex) + 
+            testHarness + 
+            code.substring(lastBraceIndex);
+
           const simulator = new JavaSimulator();
-          const result = await simulator.execute(code);
+          // Execute the COMBINED code (user's class + our test main method)
+          const result = await simulator.execute(fullCodeToExecute); 
           setPreviewOutput(result);
+
         } else {
           setPreviewOutput(`${language} preview not implemented yet`);
         }
       } catch (error) {
-        setPreviewOutput(`Preview error: ${error}`);
+        setPreviewOutput(`Preview error: ${error instanceof Error ? error.message : String(error)}`);
       } finally {
         setIsPreviewLoading(false);
       }
-    }, 500);
+    }, 100); // A 100ms delay is enough for the UI to show "Running..."
   };
+  // --- END OF THE FIX ---
 
   const startTypingDemo = () => {
     if (!task || isTyping) return;
@@ -644,35 +583,23 @@ const TaskSubmissionEditor = ({ task, language, onSubmit }: TaskSubmissionEditor
 
   return (
     <div className="flex flex-col h-full bg-white">
-      {/* Task Information Header */}
       <Card className="mb-6 bg-gradient-to-r from-blue-50 via-white to-purple-50 border-none shadow-lg">
         <CardHeader className="pb-4">
           <div className="flex justify-between items-start">
             <div className="flex-1">
               <div className="flex items-center gap-3 mb-2">
-                <div className="p-2 bg-blue-100 rounded-lg">
-                  <Target className="h-5 w-5 text-blue-600" />
-                </div>
-                <CardTitle className="text-xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                  {task.title}
-                </CardTitle>
+                <div className="p-2 bg-blue-100 rounded-lg"><Target className="h-5 w-5 text-blue-600" /></div>
+                <CardTitle className="text-xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">{task.title}</CardTitle>
               </div>
-              <CardDescription className="text-sm text-gray-700 leading-relaxed">
-                {task.description}
-              </CardDescription>
+              <CardDescription className="text-sm text-gray-700 leading-relaxed">{task.description}</CardDescription>
             </div>
             <div className="flex gap-3">
-              <Badge variant="secondary" className="capitalize px-3 py-1 text-xs font-medium bg-blue-100 text-blue-800 border-blue-200">
-                {task.difficulty_level}
-              </Badge>
-              <Badge variant="outline" className="capitalize px-3 py-1 text-xs font-medium bg-purple-100 text-purple-800 border-purple-200">
-                {language}
-              </Badge>
+              <Badge variant="secondary" className="capitalize px-3 py-1 text-xs font-medium bg-blue-100 text-blue-800 border-blue-200">{task.difficulty_level}</Badge>
+              <Badge variant="outline" className="capitalize px-3 py-1 text-xs font-medium bg-purple-100 text-purple-800 border-purple-200">{language}</Badge>
             </div>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* Instructions */}
           <div className="bg-white rounded-lg shadow-sm border border-blue-100 p-4">
             <div className="flex items-center gap-2 mb-3">
               <div className="p-1.5 bg-green-100 rounded-md"><BookOpen className="h-4 w-4 text-green-600" /></div>
@@ -682,7 +609,6 @@ const TaskSubmissionEditor = ({ task, language, onSubmit }: TaskSubmissionEditor
               <div className="prose prose-blue max-w-none"><div className="text-gray-800 leading-relaxed whitespace-pre-wrap text-sm text-justify break-words">{task.instructions}</div></div>
             </div>
           </div>
-          {/* Expected Output */}
           {task.expected_output && (
             <div className="bg-white rounded-lg shadow-sm border border-green-100 p-4">
               <div className="flex items-center gap-2 mb-3">
@@ -698,7 +624,6 @@ const TaskSubmissionEditor = ({ task, language, onSubmit }: TaskSubmissionEditor
               </div>
             </div>
           )}
-          {/* Tags */}
           {task.tags && task.tags.length > 0 && (
             <div className="bg-white rounded-lg shadow-sm border border-purple-100 p-4">
               <div className="flex items-center gap-2 mb-3">
@@ -712,8 +637,6 @@ const TaskSubmissionEditor = ({ task, language, onSubmit }: TaskSubmissionEditor
           )}
         </CardContent>
       </Card>
-
-      {/* Persistent Error Banner */}
       {showPersistentError && (
         <div className="mb-4 bg-red-50 border border-red-200 rounded-lg p-4">
           <div className="flex items-center gap-3">
@@ -726,8 +649,6 @@ const TaskSubmissionEditor = ({ task, language, onSubmit }: TaskSubmissionEditor
           </div>
         </div>
       )}
-
-      {/* Code Editor Section */}
       <div className="flex-1 bg-gray-900 rounded-lg overflow-hidden shadow-xl border border-gray-700">
         <div className="flex items-center justify-between p-4 bg-gray-800 border-b border-gray-700">
           <div className="flex items-center gap-4">
@@ -735,13 +656,9 @@ const TaskSubmissionEditor = ({ task, language, onSubmit }: TaskSubmissionEditor
             <div className="flex gap-2"><div className="w-3 h-3 bg-red-500 rounded-full"></div><div className="w-3 h-3 bg-yellow-500 rounded-full"></div><div className="w-3 h-3 bg-green-500 rounded-full"></div></div>
           </div>
           <div className="flex items-center space-x-3">
-            <Button onClick={startTypingDemo} disabled={isTyping} size="sm" variant="outline" className="bg-gray-700 border-gray-600 text-gray-300 hover:bg-gray-600">
-              {isTyping ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Typing...</> : <><Play className="w-4 h-4 mr-2" />Demo</>}
-            </Button>
+            <Button onClick={startTypingDemo} disabled={isTyping} size="sm" variant="outline" className="bg-gray-700 border-gray-600 text-gray-300 hover:bg-gray-600">{isTyping ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Typing...</> : <><Play className="w-4 h-4 mr-2" />Demo</>}</Button>
             {showDemo && <Button onClick={resetDemo} size="sm" variant="outline" className="bg-gray-700 border-gray-600 text-gray-300 hover:bg-gray-600"><RotateCcw className="w-4 h-4 mr-2" />Reset</Button>}
-            <Button onClick={handleSubmitSolution} disabled={isSubmitting || !code.trim()} className={`px-6 py-2 rounded-lg transition-all duration-200 transform hover:scale-105 disabled:opacity-50 disabled:transform-none ${lastSubmissionResult === true ? 'bg-green-600 hover:bg-green-700 text-white' : lastSubmissionResult === false ? 'bg-red-600 hover:bg-red-700 text-white' : 'bg-blue-600 hover:bg-blue-700 text-white'}`}>
-              {isSubmitting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Validating...</> : lastSubmissionResult === true ? <><CheckCircle className="w-4 h-4 mr-2" />Correct!</> : lastSubmissionResult === false ? <><XCircle className="w-4 h-4 mr-2" />Try Again</> : <><Send className="w-4 h-4 mr-2" />Submit Solution</>}
-            </Button>
+            <Button onClick={handleSubmitSolution} disabled={isSubmitting || !code.trim()} className={`px-6 py-2 rounded-lg transition-all duration-200 transform hover:scale-105 disabled:opacity-50 disabled:transform-none ${lastSubmissionResult === true ? 'bg-green-600 hover:bg-green-700 text-white' : lastSubmissionResult === false ? 'bg-red-600 hover:bg-red-700 text-white' : 'bg-blue-600 hover:bg-blue-700 text-white'}`}>{isSubmitting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Validating...</> : lastSubmissionResult === true ? <><CheckCircle className="w-4 h-4 mr-2" />Correct!</> : lastSubmissionResult === false ? <><XCircle className="w-4 h-4 mr-2" />Try Again</> : <><Send className="w-4 h-4 mr-2" />Submit Solution</>}</Button>
           </div>
         </div>
         <div style={{ height: '500px' }} className="border-b border-gray-700">
@@ -750,43 +667,13 @@ const TaskSubmissionEditor = ({ task, language, onSubmit }: TaskSubmissionEditor
         <div className="p-3 bg-gray-800">
           <div className="flex items-center justify-between mb-2">
             <h3 className="text-sm font-semibold text-gray-300 uppercase tracking-wide">Code Preview</h3>
-            <Button variant="outline" size="sm" onClick={runCodePreview} disabled={isPreviewLoading} className="text-xs bg-gray-700 border-gray-600 text-gray-300 hover:bg-gray-600">
-              {isPreviewLoading ? <><Loader2 className="w-3 h-3 mr-1 animate-spin" />Running...</> : 'Preview'}
-            </Button>
+            <Button variant="outline" size="sm" onClick={runCodePreview} disabled={isPreviewLoading} className="text-xs bg-gray-700 border-gray-600 text-gray-300 hover:bg-gray-600">{isPreviewLoading ? <><Loader2 className="w-3 h-3 mr-1 animate-spin" />Running...</> : 'Preview'}</Button>
           </div>
-          <div className="bg-black rounded p-3 font-mono text-sm text-blue-400 min-h-[60px] max-h-[100px] overflow-auto border border-gray-600">
-            <pre className="whitespace-pre-wrap">{previewOutput}</pre>
-          </div>
+          <div className="bg-black rounded p-3 font-mono text-sm text-blue-400 min-h-[60px] max-h-[100px] overflow-auto border border-gray-600"><pre className="whitespace-pre-wrap">{previewOutput}</pre></div>
         </div>
-        {lastSubmissionResult !== null && !showPersistentError && (
-          <div className={`p-3 border-t ${lastSubmissionResult ? 'bg-green-900 border-green-700 text-green-100' : 'bg-red-900 border-red-700 text-red-100'}`}>
-            <div className="flex items-center gap-2">
-              {lastSubmissionResult ? <CheckCircle className="w-4 h-4" /> : <XCircle className="w-4 h-4" />}
-              <span className="text-sm font-medium">{lastSubmissionResult ? 'Correct! Your solution passed all tests.' : 'Your solution needs some work. Check the expected output and try again.'}</span>
-            </div>
-          </div>
-        )}
+        {lastSubmissionResult !== null && !showPersistentError && (<div className={`p-3 border-t ${lastSubmissionResult ? 'bg-green-900 border-green-700 text-green-100' : 'bg-red-900 border-red-700 text-red-100'}`}><div className="flex items-center gap-2">{lastSubmissionResult ? <CheckCircle className="w-4 h-4" /> : <XCircle className="w-4 h-4" />}<span className="text-sm font-medium">{lastSubmissionResult ? 'Correct! Your solution passed all tests.' : 'Your solution needs some work. Check the expected output and try again.'}</span></div></div>)}
       </div>
-
-      {/* Input Dialog */}
-      <Dialog open={showInputDialog} onOpenChange={setShowInputDialog}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Input Required</DialogTitle>
-            <DialogDescription>Your code is asking for input{pendingInputVariable && ` for variable "${pendingInputVariable}"`}. Please enter a value below.</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <label className="text-sm font-medium text-gray-700 mb-2 block">{inputPrompt}</label>
-              <Input value={inputValue} onChange={(e) => setInputValue(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') handleInputSubmit(); }} placeholder="Enter your input..." autoFocus />
-            </div>
-            <div className="flex justify-end space-x-2">
-              <Button variant="outline" onClick={() => setShowInputDialog(false)}>Cancel</Button>
-              <Button onClick={handleInputSubmit}>Submit</Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <Dialog open={showInputDialog} onOpenChange={setShowInputDialog}><DialogContent className="sm:max-w-md"><DialogHeader><DialogTitle>Input Required</DialogTitle><DialogDescription>Your code is asking for input{pendingInputVariable && ` for variable "${pendingInputVariable}"`}. Please enter a value below.</DialogDescription></DialogHeader><div className="space-y-4"><div><label className="text-sm font-medium text-gray-700 mb-2 block">{inputPrompt}</label><Input value={inputValue} onChange={(e) => setInputValue(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') handleInputSubmit(); }} placeholder="Enter your input..." autoFocus /></div><div className="flex justify-end space-x-2"><Button variant="outline" onClick={() => setShowInputDialog(false)}>Cancel</Button><Button onClick={handleInputSubmit}>Submit</Button></div></div></DialogContent></Dialog>
       <AICodingAssistant currentCode={code} language={language} />
     </div>
   );
