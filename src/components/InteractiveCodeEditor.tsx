@@ -25,38 +25,38 @@ const InteractiveCodeEditor = ({ initialCode }: InteractiveCodeEditorProps) => {
     setOutput('Running code...');
 
     try {
-      // For MVP - simulate code execution
-      // In Phase 2, this will make an actual API call to your Flask backend
-      setTimeout(() => {
-        if (language === 'python') {
-          // Simple simulation for Python code
-          if (code.includes('print')) {
-            const lines = code.split('\n');
-            const printLines = lines.filter(line => line.trim().startsWith('print('));
-            if (printLines.length > 0) {
-              // Basic simulation of print statements
-              let simulatedOutput = '';
-              printLines.forEach(line => {
-                const match = line.match(/print\((.*)\)/);
-                if (match) {
-                  const content = match[1].replace(/"/g, '').replace(/'/g, '');
-                  simulatedOutput += content + '\n';
-                }
-              });
-              setOutput(simulatedOutput || 'Code executed successfully!');
-            } else {
-              setOutput('Code executed successfully!');
-            }
-          } else {
-            setOutput('Code executed successfully! (No output to display)');
-          }
-        } else {
-          setOutput(`${language} code would be executed here.`);
-        }
-        setIsRunning(false);
-      }, 1500);
+      // Make API call to JDoodle via our Supabase edge function
+      const response = await fetch('/functions/v1/execute-code', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          code,
+          language,
+          input: '' // Could be extended to support input later
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+
+      if (result.error) {
+        setOutput(`Error: ${result.error}${result.details ? ` - ${result.details}` : ''}`);
+      } else {
+        const output = result.output || 'Code executed successfully! (No output)';
+        const executionInfo = result.memory && result.cpuTime 
+          ? `\n\n--- Execution Info ---\nMemory: ${result.memory}\nCPU Time: ${result.cpuTime}`
+          : '';
+        setOutput(output + executionInfo);
+      }
     } catch (error) {
-      setOutput(`Error: ${error}`);
+      console.error('Code execution error:', error);
+      setOutput(`Execution Error: ${error instanceof Error ? error.message : 'Unknown error occurred'}`);
+    } finally {
       setIsRunning(false);
     }
   };

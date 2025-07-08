@@ -307,43 +307,44 @@ const TaskSubmissionEditor = ({ task, language, onSubmit }: TaskSubmissionEditor
     }
   };
 
-  const runCodePreview = () => {
+  const runCodePreview = async () => {
     setIsPreviewLoading(true);
-    setTimeout(async () => {
-      try {
-        if (language === 'python') {
-          const simulator = new PythonSimulator(simulateInput);
-          const result = await simulator.execute(code);
-          setPreviewOutput(result);
-        } else if (language === 'java') {
-          const testHarness = `
-            public static void main(String[] args) {
-                Solution solution = new Solution();
-                int[] salesData = new int[] {15, 25, 10, 50}; 
-                int total = solution.calculateTotalSales(salesData);
-                System.out.println("Preview with sample data {15, 25, 10, 50}:");
-                System.out.println("Calculated Total: " + total);
-            }
-          `;
-          
-          const lastBraceIndex = code.lastIndexOf('}');
-          if (lastBraceIndex === -1) throw new Error("Invalid Java code: Missing a closing '}' for the class.");
-          
-          const fullCodeToExecute = 
-            code.substring(0, lastBraceIndex) + testHarness + code.substring(lastBraceIndex);
+    
+    try {
+      // Make API call to JDoodle via our Supabase edge function
+      const response = await fetch('/functions/v1/execute-code', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          code,
+          language,
+          input: '' // Could be extended to support input later
+        })
+      });
 
-          const simulator = new JavaSimulator();
-          const result = await simulator.execute(fullCodeToExecute); 
-          setPreviewOutput(result);
-        } else {
-          setPreviewOutput(`${language} preview not implemented yet`);
-        }
-      } catch (error) {
-        setPreviewOutput(`Preview error: ${error instanceof Error ? error.message : String(error)}`);
-      } finally {
-        setIsPreviewLoading(false);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
-    }, 100);
+
+      const result = await response.json();
+
+      if (result.error) {
+        setPreviewOutput(`Error: ${result.error}${result.details ? ` - ${result.details}` : ''}`);
+      } else {
+        const output = result.output || 'Code executed successfully! (No output)';
+        const executionInfo = result.memory && result.cpuTime 
+          ? `\n\n--- Execution Info ---\nMemory: ${result.memory}\nCPU Time: ${result.cpuTime}`
+          : '';
+        setPreviewOutput(output + executionInfo);
+      }
+    } catch (error) {
+      console.error('Code preview error:', error);
+      setPreviewOutput(`Preview Error: ${error instanceof Error ? error.message : 'Unknown error occurred'}`);
+    } finally {
+      setIsPreviewLoading(false);
+    }
   };
 
   const startTypingDemo = () => {
