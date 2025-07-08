@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 import AICodingAssistant from './AICodingAssistant';
 
 interface Task {
@@ -312,23 +313,17 @@ const TaskSubmissionEditor = ({ task, language, onSubmit }: TaskSubmissionEditor
     
     try {
       // Make API call to JDoodle via our Supabase edge function
-      const response = await fetch('/functions/v1/execute-code', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
+      const { data: result, error } = await supabase.functions.invoke('execute-code', {
+        body: {
           code,
           language,
           input: '' // Could be extended to support input later
-        })
+        }
       });
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+      if (error) {
+        throw new Error(error.message);
       }
-
-      const result = await response.json();
 
       if (result.error) {
         setPreviewOutput(`Error: ${result.error}${result.details ? ` - ${result.details}` : ''}`);
