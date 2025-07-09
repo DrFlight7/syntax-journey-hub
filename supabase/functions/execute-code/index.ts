@@ -6,7 +6,7 @@ const corsHeaders = {
 }
 
 interface JDoodleRequest {
-  clientID: string;
+  clientId: string;
   clientSecret: string;
   script: string;
   language: string;
@@ -73,7 +73,7 @@ serve(async (req) => {
 
     // Prepare JDoodle API request
     const jdoodleRequest: JDoodleRequest = {
-      clientID,
+      clientId: clientID,
       clientSecret,
       script: code,
       language: languageConfig.language,
