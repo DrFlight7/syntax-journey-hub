@@ -200,11 +200,16 @@ export type Database = {
           id: string
           initial_code: string
           instructions: string
+          learning_objectives: string[] | null
+          month: string | null
           order_index: number
+          real_world_application: string | null
           tags: string[] | null
           test_cases: Json | null
+          theory_concept: string | null
           title: string
           updated_at: string | null
+          week: string | null
         }
         Insert: {
           course_id?: string | null
@@ -215,11 +220,16 @@ export type Database = {
           id?: string
           initial_code: string
           instructions: string
+          learning_objectives?: string[] | null
+          month?: string | null
           order_index: number
+          real_world_application?: string | null
           tags?: string[] | null
           test_cases?: Json | null
+          theory_concept?: string | null
           title: string
           updated_at?: string | null
+          week?: string | null
         }
         Update: {
           course_id?: string | null
@@ -230,11 +240,16 @@ export type Database = {
           id?: string
           initial_code?: string
           instructions?: string
+          learning_objectives?: string[] | null
+          month?: string | null
           order_index?: number
+          real_world_application?: string | null
           tags?: string[] | null
           test_cases?: Json | null
+          theory_concept?: string | null
           title?: string
           updated_at?: string | null
+          week?: string | null
         }
         Relationships: [
           {
