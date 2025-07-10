@@ -252,6 +252,7 @@ const TaskSubmissionEditor = ({ task, language, onSubmit }: TaskSubmissionEditor
   const [code, setCode] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [lastSubmissionResult, setLastSubmissionResult] = useState<boolean | null>(null);
+  const [submissionFeedback, setSubmissionFeedback] = useState<string>('');
   const [previewOutput, setPreviewOutput] = useState('Click "Preview" to see code output...');
   const [isPreviewLoading, setIsPreviewLoading] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
@@ -264,6 +265,72 @@ const TaskSubmissionEditor = ({ task, language, onSubmit }: TaskSubmissionEditor
   const [showPersistentError, setShowPersistentError] = useState(false);
   const editorRef = useRef(null);
   const { toast } = useToast();
+
+  const generateHelpfulTip = (executionOutput: string, validationDetails: string, expectedOutput: string | null): string => {
+    // Check for compilation/syntax errors
+    if (executionOutput.includes('Error:') || executionOutput.includes('SyntaxError') || executionOutput.includes('CompileError')) {
+      if (executionOutput.includes('IndentationError') || executionOutput.includes('unexpected indent')) {
+        return 'Check your code indentation. Python requires consistent spacing for code blocks.';
+      }
+      if (executionOutput.includes('SyntaxError')) {
+        return 'Fix syntax errors in your code. Check for missing colons, parentheses, or quotes.';
+      }
+      if (executionOutput.includes('NameError')) {
+        return 'Check for undefined variables or functions. Make sure all variables are declared before use.';
+      }
+      return 'Fix the compilation error shown in the output before proceeding.';
+    }
+
+    // Check for runtime errors
+    if (executionOutput.includes('runtime error') || executionOutput.includes('RuntimeError') || executionOutput.includes('Exception')) {
+      return 'Your code has a runtime error. Review your logic and handle edge cases properly.';
+    }
+
+    // Check for output mismatch
+    if (executionOutput.includes('Output mismatch!') && expectedOutput) {
+      const actualMatch = executionOutput.match(/Actual: "([^"]*)"/);
+      const expectedMatch = executionOutput.match(/Expected: "([^"]*)"/);
+      
+      if (actualMatch && expectedMatch) {
+        const actual = actualMatch[1];
+        const expected = expectedMatch[1];
+        
+        if (actual.length === 0) {
+          return 'Your code produces no output. Make sure you have print statements to display the result.';
+        }
+        if (actual.includes('None')) {
+          return 'Your code is returning None. Check that your function returns the correct value.';
+        }
+        if (expected.includes('\\n') && !actual.includes('\\n')) {
+          return 'Check your output format. You might be missing line breaks or proper formatting.';
+        }
+        if (actual !== expected) {
+          return `Your output "${actual}" doesn't match the expected "${expected}". Double-check your calculations and logic.`;
+        }
+      }
+      return 'Your output doesn\'t match the expected result. Review the problem requirements carefully.';
+    }
+
+    // Check for logic errors based on task patterns
+    if (validationDetails.includes('testsPassed: 0')) {
+      if (language === 'python3') {
+        return 'Your solution isn\'t working correctly. Check your algorithm logic, variable assignments, and return statements.';
+      }
+      if (language === 'java') {
+        return 'Your Java solution has logical errors. Verify your method implementation, loop conditions, and return values.';
+      }
+    }
+
+    // Default helpful tips based on language
+    if (language === 'python3') {
+      return 'Review your Python code: check variable names, indentation, and make sure you\'re returning the correct value.';
+    }
+    if (language === 'java') {
+      return 'Review your Java code: check method signatures, variable types, and ensure proper return statements.';
+    }
+
+    return 'Your solution needs adjustment. Compare your output with the expected result and review your algorithm.';
+  };
 
   useEffect(() => {
     if (task) {
@@ -282,16 +349,58 @@ const TaskSubmissionEditor = ({ task, language, onSubmit }: TaskSubmissionEditor
     if (!task || isSubmitting) return;
     setIsSubmitting(true);
     try {
-      const result = await onSubmit(code);
-      setLastSubmissionResult(result);
-      if (!result) {
+      // Call validation function directly to get detailed results
+      const { data: validationResult, error } = await supabase.functions.invoke('validate-code', {
+        body: {
+          code,
+          taskId: task.id,
+          language
+        }
+      });
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      const isCorrect = validationResult?.isCorrect || false;
+      setLastSubmissionResult(isCorrect);
+      
+      if (!isCorrect) {
+        // Generate helpful tip based on validation results
+        const helpfulTip = generateHelpfulTip(
+          validationResult?.executionOutput || '',
+          JSON.stringify(validationResult?.validationResults || {}),
+          task.expected_output
+        );
+        setSubmissionFeedback(helpfulTip);
         setShowPersistentError(true);
-        toast({ title: "Not quite right", description: "Your solution needs some work. Check the expected output and try again.", variant: "destructive" });
-      } else { setShowPersistentError(false); }
+        toast({ 
+          title: "Not quite right", 
+          description: helpfulTip, 
+          variant: "destructive" 
+        });
+      } else { 
+        setShowPersistentError(false);
+        setSubmissionFeedback('');
+        toast({ 
+          title: "Excellent!", 
+          description: "Your solution is correct!", 
+          variant: "default" 
+        });
+      }
     } catch (error) {
-      setLastSubmissionResult(false); setShowPersistentError(true);
-      toast({ title: "Submission error", description: "There was an error submitting your code. Please try again.", variant: "destructive" });
-    } finally { setIsSubmitting(false); }
+      setLastSubmissionResult(false); 
+      setShowPersistentError(true);
+      const errorTip = "There was an error validating your code. Please check your syntax and try again.";
+      setSubmissionFeedback(errorTip);
+      toast({ 
+        title: "Submission error", 
+        description: errorTip, 
+        variant: "destructive" 
+      });
+    } finally { 
+      setIsSubmitting(false); 
+    }
   };
 
   const simulateInput = (prompt: string, variableName: string): Promise<string> => {
@@ -435,9 +544,9 @@ const TaskSubmissionEditor = ({ task, language, onSubmit }: TaskSubmissionEditor
         <div className="mb-4 bg-red-50 border border-red-200 rounded-lg p-4">
           <div className="flex items-center gap-3">
             <div className="p-1 bg-red-100 rounded-full"><AlertTriangle className="h-4 w-4 text-red-600" /></div>
-            <div>
+            <div className="flex-1">
               <h4 className="text-sm font-semibold text-red-800">Not quite right</h4>
-              <p className="text-sm text-red-700">Your solution needs some work. Check the expected output and try again.</p>
+              <p className="text-sm text-red-700">{submissionFeedback || "Your solution needs some work. Check the expected output and try again."}</p>
             </div>
             <Button variant="ghost" size="sm" onClick={() => setShowPersistentError(false)} className="ml-auto text-red-600 hover:text-red-800"><XCircle className="h-4 w-4" /></Button>
           </div>
