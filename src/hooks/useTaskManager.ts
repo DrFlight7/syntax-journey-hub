@@ -346,8 +346,23 @@ export const useTaskManager = (courseId?: string) => {
     const currentIndex = allTasks.findIndex(t => t.id === currentTask.id);
     const nextTask = allTasks[currentIndex + 1];
 
-    const newCompletedTasks = userProgress.completed_tasks + 1;
-    const newCompletionPercentage = (newCompletedTasks / userProgress.total_tasks) * 100;
+    // Check if this task was already completed before
+    const { data: existingSubmission } = await supabase
+      .from('task_submissions')
+      .select('is_correct')
+      .eq('user_id', user!.id)
+      .eq('task_id', currentTask.id)
+      .eq('is_correct', true)
+      .limit(1);
+
+    const wasAlreadyCompleted = existingSubmission && existingSubmission.length > 0;
+    
+    // Only increment completed_tasks if this is the first time completing this task
+    const newCompletedTasks = wasAlreadyCompleted 
+      ? userProgress.completed_tasks 
+      : Math.min(userProgress.completed_tasks + 1, userProgress.total_tasks);
+    
+    const newCompletionPercentage = Math.min((newCompletedTasks / userProgress.total_tasks) * 100, 100);
 
     const updateData = {
       completed_tasks: newCompletedTasks,
