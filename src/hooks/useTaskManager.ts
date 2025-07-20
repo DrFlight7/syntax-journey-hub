@@ -346,16 +346,17 @@ export const useTaskManager = (courseId?: string) => {
     const currentIndex = allTasks.findIndex(t => t.id === currentTask.id);
     const nextTask = allTasks[currentIndex + 1];
 
-    // Check if this task was already completed before
-    const { data: existingSubmission } = await supabase
+    // Check if this task was already completed before (excluding the current submission)
+    const { data: existingSubmissions } = await supabase
       .from('task_submissions')
-      .select('is_correct')
+      .select('is_correct, submitted_at')
       .eq('user_id', user!.id)
       .eq('task_id', currentTask.id)
       .eq('is_correct', true)
-      .limit(1);
+      .order('submitted_at', { ascending: true });
 
-    const wasAlreadyCompleted = existingSubmission && existingSubmission.length > 0;
+    // If there are 2 or more correct submissions, this task was already completed before
+    const wasAlreadyCompleted = existingSubmissions && existingSubmissions.length > 1;
     
     // Only increment completed_tasks if this is the first time completing this task
     const newCompletedTasks = wasAlreadyCompleted 
