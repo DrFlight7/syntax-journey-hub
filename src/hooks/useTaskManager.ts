@@ -300,7 +300,9 @@ export const useTaskManager = (courseId?: string) => {
       if (submissionError) throw submissionError;
 
       if (isCorrect) {
+        console.log('[SUBMIT-TASK] Code is correct, calling moveToNextTask');
         await moveToNextTask();
+        console.log('[SUBMIT-TASK] moveToNextTask completed successfully');
         toast({
           title: "Correct! ✅",
           description: "Great job! Moving to the next task.",
@@ -341,49 +343,89 @@ export const useTaskManager = (courseId?: string) => {
   };
 
   const moveToNextTask = async () => {
-    if (!currentTask || !userProgress || !allTasks) return;
+    console.log('[MOVE-TO-NEXT-TASK] Starting function');
+    if (!currentTask || !userProgress || !allTasks) {
+      console.log('[MOVE-TO-NEXT-TASK] Missing required data:', { 
+        currentTask: !!currentTask, 
+        userProgress: !!userProgress, 
+        allTasks: !!allTasks 
+      });
+      return;
+    }
 
     const currentIndex = allTasks.findIndex(t => t.id === currentTask.id);
     const nextTask = allTasks[currentIndex + 1];
+    console.log('[MOVE-TO-NEXT-TASK] Current task index:', currentIndex, 'Next task exists:', !!nextTask);
 
-    // Check if this task was already completed before (excluding the current submission)
-    const { data: existingSubmissions } = await supabase
-      .from('task_submissions')
-      .select('is_correct, submitted_at')
-      .eq('user_id', user!.id)
-      .eq('task_id', currentTask.id)
-      .eq('is_correct', true)
-      .order('submitted_at', { ascending: true });
+    try {
+      // Check if this task was already completed before (excluding the current submission)
+      console.log('[MOVE-TO-NEXT-TASK] Checking existing submissions for task:', currentTask.id);
+      const { data: existingSubmissions, error: submissionError } = await supabase
+        .from('task_submissions')
+        .select('is_correct, submitted_at')
+        .eq('user_id', user!.id)
+        .eq('task_id', currentTask.id)
+        .eq('is_correct', true)
+        .order('submitted_at', { ascending: true });
 
-    // If there are 2 or more correct submissions, this task was already completed before
-    const wasAlreadyCompleted = existingSubmissions && existingSubmissions.length > 1;
-    
-    // Only increment completed_tasks if this is the first time completing this task
-    const newCompletedTasks = wasAlreadyCompleted 
-      ? userProgress.completed_tasks 
-      : Math.min(userProgress.completed_tasks + 1, userProgress.total_tasks);
-    
-    const newCompletionPercentage = Math.min((newCompletedTasks / userProgress.total_tasks) * 100, 100);
+      if (submissionError) {
+        console.error('[MOVE-TO-NEXT-TASK] Error fetching submissions:', submissionError);
+        throw submissionError;
+      }
 
-    const updateData = {
-      completed_tasks: newCompletedTasks,
-      completion_percentage: newCompletionPercentage,
-      current_task_id: nextTask?.id || null,
-      last_activity_at: new Date().toISOString(),
-      ...(newCompletionPercentage === 100 ? { completed_at: new Date().toISOString() } : {})
-    };
+      console.log('[MOVE-TO-NEXT-TASK] Existing correct submissions:', existingSubmissions?.length || 0);
 
-    const { error } = await supabase
-      .from('user_progress')
-      .update(updateData)
-      .eq('id', userProgress.id);
+      // If there are 2 or more correct submissions, this task was already completed before
+      const wasAlreadyCompleted = existingSubmissions && existingSubmissions.length > 1;
+      console.log('[MOVE-TO-NEXT-TASK] Was already completed:', wasAlreadyCompleted);
+      
+      // Only increment completed_tasks if this is the first time completing this task
+      const newCompletedTasks = wasAlreadyCompleted 
+        ? userProgress.completed_tasks 
+        : Math.min(userProgress.completed_tasks + 1, userProgress.total_tasks);
+      
+      const newCompletionPercentage = Math.min((newCompletedTasks / userProgress.total_tasks) * 100, 100);
 
-    if (error) throw error;
+      console.log('[MOVE-TO-NEXT-TASK] Progress update:', {
+        oldCompleted: userProgress.completed_tasks,
+        newCompleted: newCompletedTasks,
+        totalTasks: userProgress.total_tasks,
+        newPercentage: newCompletionPercentage
+      });
 
-    // Update local state
-    setUserProgress({ ...userProgress, ...updateData });
-    if (nextTask) {
-      setCurrentTask(nextTask);
+      const updateData = {
+        completed_tasks: newCompletedTasks,
+        completion_percentage: newCompletionPercentage,
+        current_task_id: nextTask?.id || null,
+        last_activity_at: new Date().toISOString(),
+        ...(newCompletionPercentage === 100 ? { completed_at: new Date().toISOString() } : {})
+      };
+
+      console.log('[MOVE-TO-NEXT-TASK] Updating user progress with:', updateData);
+
+      const { error } = await supabase
+        .from('user_progress')
+        .update(updateData)
+        .eq('id', userProgress.id);
+
+      if (error) {
+        console.error('[MOVE-TO-NEXT-TASK] Error updating progress:', error);
+        throw error;
+      }
+
+      console.log('[MOVE-TO-NEXT-TASK] Successfully updated user progress');
+
+      // Update local state
+      setUserProgress({ ...userProgress, ...updateData });
+      if (nextTask) {
+        setCurrentTask(nextTask);
+        console.log('[MOVE-TO-NEXT-TASK] Moved to next task:', nextTask.title);
+      } else {
+        console.log('[MOVE-TO-NEXT-TASK] No next task available - course completed');
+      }
+    } catch (error) {
+      console.error('[MOVE-TO-NEXT-TASK] Function failed:', error);
+      throw error;
     }
   };
 
