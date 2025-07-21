@@ -24,9 +24,11 @@ const Auth = () => {
     email: '', 
     password: '', 
     fullName: '', 
-    role: '' as 'teacher' | 'student' | ''
+    role: '' as 'teacher' | 'student' | '',
+    invitationCode: ''
   });
   const [selectedRole, setSelectedRole] = useState<'teacher' | 'student' | ''>('');
+  const [roleInvitationCode, setRoleInvitationCode] = useState('');
 
   // Redirect if user is authenticated AND has a role
   useEffect(() => {
@@ -73,6 +75,15 @@ const Auth = () => {
       toast({
         title: "Role required",
         description: "Please select whether you are a teacher or student.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (signupForm.role === 'teacher' && signupForm.invitationCode !== 'L0V3') {
+      toast({
+        title: "Invalid invitation code",
+        description: "Please enter a valid teacher invitation code.",
         variant: "destructive",
       });
       return;
@@ -143,6 +154,15 @@ const Auth = () => {
   const handleRoleSelection = async () => {
     if (!selectedRole || !user) return;
 
+    if (selectedRole === 'teacher' && roleInvitationCode !== 'L0V3') {
+      toast({
+        title: "Invalid invitation code",
+        description: "Please enter a valid teacher invitation code.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsLoading(true);
     try {
       const { error } = await supabase
@@ -202,6 +222,19 @@ const Auth = () => {
                 </SelectContent>
               </Select>
             </div>
+            {selectedRole === 'teacher' && (
+              <div className="space-y-2">
+                <Label htmlFor="role-invitation-code">Teacher Invitation Code</Label>
+                <Input
+                  id="role-invitation-code"
+                  type="text"
+                  placeholder="Enter invitation code"
+                  value={roleInvitationCode}
+                  onChange={(e) => setRoleInvitationCode(e.target.value)}
+                  required
+                />
+              </div>
+            )}
             <Button 
               onClick={handleRoleSelection} 
               className="w-full" 
@@ -360,6 +393,19 @@ const Auth = () => {
                     </SelectContent>
                   </Select>
                 </div>
+                {signupForm.role === 'teacher' && (
+                  <div className="space-y-2">
+                    <Label htmlFor="signup-invitation-code">Teacher Invitation Code</Label>
+                    <Input
+                      id="signup-invitation-code"
+                      type="text"
+                      placeholder="Enter invitation code"
+                      value={signupForm.invitationCode}
+                      onChange={(e) => setSignupForm(prev => ({ ...prev, invitationCode: e.target.value }))}
+                      required
+                    />
+                  </div>
+                )}
                 <Button type="submit" className="w-full" disabled={isLoading}>
                   {isLoading ? 'Creating account...' : 'Sign Up'}
                 </Button>
