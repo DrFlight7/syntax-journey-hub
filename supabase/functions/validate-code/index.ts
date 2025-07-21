@@ -67,20 +67,44 @@ serve(async (req) => {
       if (executeError) {
         console.log(`[VALIDATE-CODE] Code execution error: ${executeError.message}`)
         isCorrect = false
-        executionOutput = `Code execution failed: ${executeError.message}`
-        validationResults = {
-          testsPassed: 0,
-          totalTests: 1,
-          details: executionOutput
+        
+        // Check if this is a service limit issue
+        if (executeError.message.includes('Daily limit reached') || executeError.message.includes('429')) {
+          executionOutput = `Service temporarily unavailable: The code execution service has reached its daily limit. Please try again later.`
+          validationResults = {
+            testsPassed: 0,
+            totalTests: 1,
+            details: 'SERVICE_LIMIT_REACHED',
+            serviceError: true
+          }
+        } else {
+          executionOutput = `Code execution failed: ${executeError.message}`
+          validationResults = {
+            testsPassed: 0,
+            totalTests: 1,
+            details: executionOutput
+          }
         }
       } else if (executeResult?.error) {
         console.log(`[VALIDATE-CODE] Code execution returned error: ${executeResult.error}`)
         isCorrect = false
-        executionOutput = `Code execution error: ${executeResult.error}`
-        validationResults = {
-          testsPassed: 0,
-          totalTests: 1,
-          details: executionOutput
+        
+        // Check if this is a service limit issue
+        if (executeResult.error.includes('Daily limit reached') || executeResult.error.includes('429')) {
+          executionOutput = `Service temporarily unavailable: The code execution service has reached its daily limit. Please try again later.`
+          validationResults = {
+            testsPassed: 0,
+            totalTests: 1,
+            details: 'SERVICE_LIMIT_REACHED',
+            serviceError: true
+          }
+        } else {
+          executionOutput = `Code execution error: ${executeResult.error}`
+          validationResults = {
+            testsPassed: 0,
+            totalTests: 1,
+            details: executionOutput
+          }
         }
       } else {
         const actualOutput = executeResult?.output?.trim() || ''

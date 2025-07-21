@@ -366,19 +366,31 @@ const TaskSubmissionEditor = ({ task, language, onSubmit }: TaskSubmissionEditor
       setLastSubmissionResult(isCorrect);
       
       if (!isCorrect) {
-        // Generate helpful tip based on validation results
-        const helpfulTip = generateHelpfulTip(
-          validationResult?.executionOutput || '',
-          JSON.stringify(validationResult?.validationResults || {}),
-          task.expected_output
-        );
-        setSubmissionFeedback(helpfulTip);
-        setShowPersistentError(true);
-        toast({ 
-          title: "Not quite right", 
-          description: helpfulTip, 
-          variant: "destructive" 
-        });
+        // Check if this is a service error
+        if (validationResult?.validationResults?.serviceError) {
+          const serviceErrorMessage = validationResult?.executionOutput || "Service temporarily unavailable. Please try again later.";
+          setSubmissionFeedback(serviceErrorMessage);
+          setShowPersistentError(true);
+          toast({ 
+            title: "Service unavailable", 
+            description: serviceErrorMessage, 
+            variant: "destructive" 
+          });
+        } else {
+          // Generate helpful tip based on validation results
+          const helpfulTip = generateHelpfulTip(
+            validationResult?.executionOutput || '',
+            JSON.stringify(validationResult?.validationResults || {}),
+            task.expected_output
+          );
+          setSubmissionFeedback(helpfulTip);
+          setShowPersistentError(true);
+          toast({ 
+            title: "Not quite right", 
+            description: helpfulTip, 
+            variant: "destructive" 
+          });
+        }
       } else { 
         setShowPersistentError(false);
         setSubmissionFeedback('');
