@@ -10,6 +10,7 @@ import UserProfile from '@/components/UserProfile';
 import TaskManagementModal from '@/components/TaskManagementModal';
 import CourseManagementModal from '@/components/CourseManagementModal';
 import CourseCard from '@/components/CourseCard';
+import StudentProgressTable from '@/components/StudentProgressTable';
 import { useToast } from '@/hooks/use-toast';
 
 interface Course {
@@ -287,6 +288,12 @@ const TeacherDashboard = () => {
                 ))}
               </div>
             )}
+          </div>
+
+          {/* Student Progress Section */}
+          <div className="mb-8">
+            <h2 className="text-2xl font-bold text-gray-800 mb-6">Student Progress</h2>
+            {user && <StudentProgressTable teacherId={user.id} />}
           </div>
         </main>
 
