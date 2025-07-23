@@ -348,62 +348,20 @@ const TaskSubmissionEditor = ({ task, language, onSubmit }: TaskSubmissionEditor
   const handleSubmitSolution = async () => {
     if (!task || isSubmitting) return;
     setIsSubmitting(true);
+    
     try {
-      // Call validation function directly to get detailed results
-      const { data: validationResult, error } = await supabase.functions.invoke('validate-code', {
-        body: {
-          code,
-          taskId: task.id,
-          language
-        }
-      });
-
-      if (error) {
-        throw new Error(error.message);
-      }
-
-      const isCorrect = validationResult?.isCorrect || false;
+      // Use the onSubmit prop which handles task progression
+      const isCorrect = await onSubmit(code);
       setLastSubmissionResult(isCorrect);
       
-      if (!isCorrect) {
-        // Check if this is a service error
-        if (validationResult?.validationResults?.serviceError) {
-          const serviceErrorMessage = validationResult?.executionOutput || "Service temporarily unavailable. Please try again later.";
-          setSubmissionFeedback(serviceErrorMessage);
-          setShowPersistentError(true);
-          toast({ 
-            title: "Service unavailable", 
-            description: serviceErrorMessage, 
-            variant: "destructive" 
-          });
-        } else {
-          // Generate helpful tip based on validation results
-          const helpfulTip = generateHelpfulTip(
-            validationResult?.executionOutput || '',
-            JSON.stringify(validationResult?.validationResults || {}),
-            task.expected_output
-          );
-          setSubmissionFeedback(helpfulTip);
-          setShowPersistentError(true);
-          toast({ 
-            title: "Not quite right", 
-            description: helpfulTip, 
-            variant: "destructive" 
-          });
-        }
-      } else { 
+      if (isCorrect) {
         setShowPersistentError(false);
         setSubmissionFeedback('');
-        toast({ 
-          title: "Excellent!", 
-          description: "Your solution is correct!", 
-          variant: "default" 
-        });
       }
     } catch (error) {
       setLastSubmissionResult(false); 
       setShowPersistentError(true);
-      const errorTip = "There was an error validating your code. Please check your syntax and try again.";
+      const errorTip = "There was an error submitting your solution. Please check your syntax and try again.";
       setSubmissionFeedback(errorTip);
       toast({ 
         title: "Submission error", 
