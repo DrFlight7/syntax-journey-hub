@@ -201,6 +201,7 @@ const StudentCoursePage = () => {
                   task={currentTask}
                   language={currentCourse.language}
                   onSubmit={submitTask}
+                  courseName={currentCourse.title}
                 />
               ) : (
                 <Card>

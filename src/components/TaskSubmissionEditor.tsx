@@ -26,6 +26,7 @@ interface TaskSubmissionEditorProps {
   task: Task | null;
   language: string;
   onSubmit: (code: string) => Promise<boolean>;
+  courseName?: string;
 }
 
 // NOTE: PythonSimulator is unchanged and correct.
@@ -248,7 +249,7 @@ class JavaSimulator {
   }
 }
 
-const TaskSubmissionEditor = ({ task, language, onSubmit }: TaskSubmissionEditorProps) => {
+const TaskSubmissionEditor = ({ task, language, onSubmit, courseName }: TaskSubmissionEditorProps) => {
   const [code, setCode] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [lastSubmissionResult, setLastSubmissionResult] = useState<boolean | null>(null);
@@ -263,8 +264,12 @@ const TaskSubmissionEditor = ({ task, language, onSubmit }: TaskSubmissionEditor
   const [inputResolver, setInputResolver] = useState<((value: string) => void) | null>(null);
   const [pendingInputVariable, setPendingInputVariable] = useState<string>('');
   const [showPersistentError, setShowPersistentError] = useState(false);
+  const [browserPreview, setBrowserPreview] = useState('');
   const editorRef = useRef(null);
   const { toast } = useToast();
+
+  // Check if this is a web course that needs browser preview
+  const isWebCourse = courseName?.toLowerCase().includes('web systems and technologies');
 
   const generateHelpfulTip = (executionOutput: string, validationDetails: string, expectedOutput: string | null): string => {
     // Check for compilation/syntax errors
@@ -389,6 +394,19 @@ const TaskSubmissionEditor = ({ task, language, onSubmit }: TaskSubmissionEditor
 
   const runCodePreview = async () => {
     setIsPreviewLoading(true);
+    
+    // For web courses, create browser preview
+    if (isWebCourse) {
+      try {
+        setBrowserPreview(code);
+        setPreviewOutput('Browser preview updated!');
+      } catch (error) {
+        setPreviewOutput(`Preview Error: ${error instanceof Error ? error.message : 'Unknown error occurred'}`);
+      } finally {
+        setIsPreviewLoading(false);
+      }
+      return;
+    }
     
     try {
       // Make API call to JDoodle via our Supabase edge function
@@ -539,10 +557,27 @@ const TaskSubmissionEditor = ({ task, language, onSubmit }: TaskSubmissionEditor
         </div>
         <div className="p-3 bg-gray-800">
           <div className="flex items-center justify-between mb-2">
-            <h3 className="text-sm font-semibold text-gray-300 uppercase tracking-wide">Code Preview</h3>
-            <Button variant="outline" size="sm" onClick={runCodePreview} disabled={isPreviewLoading} className="text-xs bg-gray-700 border-gray-600 text-gray-300 hover:bg-gray-600">{isPreviewLoading ? <><Loader2 className="w-3 h-3 mr-1 animate-spin" />Running...</> : 'Preview'}</Button>
+            <h3 className="text-sm font-semibold text-gray-300 uppercase tracking-wide">
+              {isWebCourse ? 'Browser Preview' : 'Code Preview'}
+            </h3>
+            <Button variant="outline" size="sm" onClick={runCodePreview} disabled={isPreviewLoading} className="text-xs bg-gray-700 border-gray-600 text-gray-300 hover:bg-gray-600">
+              {isPreviewLoading ? <><Loader2 className="w-3 h-3 mr-1 animate-spin" />Loading...</> : 'Preview'}
+            </Button>
           </div>
-          <div className="bg-black rounded p-3 font-mono text-sm text-blue-400 min-h-[60px] max-h-[100px] overflow-auto border border-gray-600"><pre className="whitespace-pre-wrap">{previewOutput}</pre></div>
+          {isWebCourse ? (
+            <div className="border border-gray-600 rounded overflow-hidden" style={{ height: '200px' }}>
+              <iframe
+                title="Web Preview"
+                srcDoc={browserPreview}
+                className="w-full h-full border-0 bg-white"
+                sandbox="allow-scripts allow-same-origin"
+              />
+            </div>
+          ) : (
+            <div className="bg-black rounded p-3 font-mono text-sm text-blue-400 min-h-[60px] max-h-[100px] overflow-auto border border-gray-600">
+              <pre className="whitespace-pre-wrap">{previewOutput}</pre>
+            </div>
+          )}
         </div>
         {lastSubmissionResult !== null && !showPersistentError && (<div className={`p-3 border-t ${lastSubmissionResult ? 'bg-green-900 border-green-700 text-green-100' : 'bg-red-900 border-red-700 text-red-100'}`}><div className="flex items-center gap-2">{lastSubmissionResult ? <CheckCircle className="w-4 h-4" /> : <XCircle className="w-4 h-4" />}<span className="text-sm font-medium">{lastSubmissionResult ? 'Correct! Your solution passed all tests.' : 'Your solution needs some work. Check the expected output and try again.'}</span></div></div>)}
       </div>
