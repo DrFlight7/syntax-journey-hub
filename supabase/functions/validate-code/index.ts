@@ -75,11 +75,38 @@ function validateWebCode(code: string, task: any) {
     
     // If expected output is provided, check for key elements
     if (expectedOutput) {
-      // For web courses, we can check if certain elements are present
-      // This is a simplified validation - in production you might want more sophisticated checking
       console.log(`[WEB-VALIDATION] Checking against expected output pattern`)
       
-      // Extract key elements from expected output for validation
+      // For HTML tasks, check for specific required elements based on expected output
+      if (expectedOutput.toLowerCase().includes('title') || expectedOutput.toLowerCase().includes('name')) {
+        if (!code.includes('<h1>') && !code.includes('<h2>') && !code.includes('<h3>')) {
+          results.codeChecks.push('Missing heading tag (h1, h2, or h3) for title/name')
+          isCorrect = false
+        }
+      }
+      
+      if (expectedOutput.toLowerCase().includes('paragraph')) {
+        if (!code.includes('<p>')) {
+          results.codeChecks.push('Missing paragraph tag (<p>)')
+          isCorrect = false
+        }
+      }
+      
+      if (expectedOutput.toLowerCase().includes('image')) {
+        if (!code.includes('<img')) {
+          results.codeChecks.push('Missing image tag (<img>)')
+          isCorrect = false
+        }
+      }
+      
+      if (expectedOutput.toLowerCase().includes('link') || expectedOutput.toLowerCase().includes('clickable')) {
+        if (!code.includes('<a ') && !code.includes('<a\n') && !code.includes('<a\t')) {
+          results.codeChecks.push('Missing link tag (<a>)')
+          isCorrect = false
+        }
+      }
+      
+      // Also do the original element extraction for additional validation
       const expectedElements = extractWebElements(expectedOutput)
       const codeElements = extractWebElements(code)
       
