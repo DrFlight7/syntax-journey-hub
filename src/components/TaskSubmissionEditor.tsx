@@ -268,6 +268,13 @@ const TaskSubmissionEditor = ({ task, language, onSubmit, courseName }: TaskSubm
   const editorRef = useRef(null);
   const { toast } = useToast();
 
+  // Draft autosave state
+  const [autoSaveMsg, setAutoSaveMsg] = useState<string>('');
+  const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
+  const [lastSubmittedCode, setLastSubmittedCode] = useState<string | null>(null);
+  const saveTimerRef = useRef<number | null>(null);
+  const isInitializingRef = useRef<boolean>(false);
+
   // Check if this is a web course that needs browser preview
   const isWebCourse = courseName?.toLowerCase().includes('web systems and technologies');
 
@@ -338,18 +345,96 @@ const TaskSubmissionEditor = ({ task, language, onSubmit, courseName }: TaskSubm
   };
 
   useEffect(() => {
-    if (task) {
-      setCode(task.initial_code);
-      setLastSubmissionResult(null);
-      setPreviewOutput('Click "Preview" to see code output...');
-      setShowDemo(false);
-      setIsTyping(false);
-      setShowPersistentError(false);
-    }
+    if (!task) return;
+
+    // Reset UI state for new task
+    setCode(task.initial_code);
+    setLastSubmissionResult(null);
+    setPreviewOutput('Click "Preview" to see code output...');
+    setShowDemo(false);
+    setIsTyping(false);
+    setShowPersistentError(false);
+    setAutoSaveMsg('');
+    setLastSavedAt(null);
+    setLastSubmittedCode(null);
+
+    // Load existing draft and last submission for this task
+    let isMounted = true;
+    (async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+
+        // Load draft if it exists
+        const { data: draftData } = await (supabase as any)
+          .from('task_drafts')
+          .select('draft_code, last_saved_at')
+          .eq('user_id', user.id)
+          .eq('task_id', task.id)
+          .maybeSingle();
+
+        if (isMounted && draftData?.draft_code !== undefined) {
+          setCode(draftData.draft_code || '');
+          if (draftData.last_saved_at) {
+            const ts = new Date(draftData.last_saved_at).toLocaleTimeString();
+            setLastSavedAt(ts);
+            setAutoSaveMsg(`Autosaved at ${ts}`);
+          }
+        }
+
+        // Load last submitted code to show as history
+        const { data: submission } = await supabase
+          .from('task_submissions')
+          .select('submitted_code, submitted_at')
+          .eq('user_id', user.id)
+          .eq('task_id', task.id)
+          .order('submitted_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (isMounted && submission?.submitted_code) {
+          setLastSubmittedCode(submission.submitted_code);
+        }
+      } catch (e) {
+        // no-op
+      }
+    })();
+
+    return () => {
+      isMounted = false;
+      if (saveTimerRef.current) {
+        window.clearTimeout(saveTimerRef.current);
+        saveTimerRef.current = null;
+      }
+    };
   }, [task?.id]);
 
-  const handleEditorDidMount = (editor: any) => { editorRef.current = editor; };
+  // Debounced autosave on code changes
+  const handleCodeChange = (value?: string) => {
+    const newCode = value ?? '';
+    setCode(newCode);
+    if (!task) return;
 
+    if (saveTimerRef.current) {
+      window.clearTimeout(saveTimerRef.current);
+    }
+    saveTimerRef.current = window.setTimeout(async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+        const { error } = await (supabase as any)
+          .from('task_drafts')
+          .upsert({ user_id: user.id, task_id: task.id, draft_code: newCode }, { onConflict: 'user_id,task_id' });
+        if (!error) {
+          const ts = new Date().toLocaleTimeString();
+          setLastSavedAt(ts);
+          setAutoSaveMsg(`Autosaved at ${ts}`);
+        }
+      } catch (e) {
+        // ignore
+      }
+    }, 800);
+  };
   const handleSubmitSolution = async () => {
     if (!task || isSubmitting) return;
     setIsSubmitting(true);
@@ -550,10 +635,11 @@ const TaskSubmissionEditor = ({ task, language, onSubmit, courseName }: TaskSubm
             <Button onClick={startTypingDemo} disabled={isTyping} size="sm" variant="outline" className="bg-gray-700 border-gray-600 text-gray-300 hover:bg-gray-600">{isTyping ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Typing...</> : <><Play className="w-4 h-4 mr-2" />Demo</>}</Button>
             {showDemo && <Button onClick={resetDemo} size="sm" variant="outline" className="bg-gray-700 border-gray-600 text-gray-300 hover:bg-gray-600"><RotateCcw className="w-4 h-4 mr-2" />Reset</Button>}
             <Button onClick={handleSubmitSolution} disabled={isSubmitting || !code.trim()} className={`px-6 py-2 rounded-lg transition-all duration-200 transform hover:scale-105 disabled:opacity-50 disabled:transform-none ${lastSubmissionResult === true ? 'bg-green-600 hover:bg-green-700 text-white' : lastSubmissionResult === false ? 'bg-red-600 hover:bg-red-700 text-white' : 'bg-blue-600 hover:bg-blue-700 text-white'}`}>{isSubmitting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Validating...</> : lastSubmissionResult === true ? <><CheckCircle className="w-4 h-4 mr-2" />Correct!</> : lastSubmissionResult === false ? <><XCircle className="w-4 h-4 mr-2" />Try Again</> : <><Send className="w-4 h-4 mr-2" />Submit Solution</>}</Button>
+            <span className="hidden sm:block text-xs text-gray-400 ml-2">{autoSaveMsg}</span>
           </div>
         </div>
         <div style={{ height: '500px' }} className="border-b border-gray-700">
-          <Editor height="100%" language={language} value={code} onChange={(value) => setCode(value || '')} onMount={handleEditorDidMount} theme="vs-dark" options={{ fontSize: 14, minimap: { enabled: false }, scrollBeyondLastLine: false, wordWrap: 'on', lineNumbers: 'on', roundedSelection: false, scrollbar: { vertical: 'visible', horizontal: 'visible' }, folding: true, foldingStrategy: 'indentation', showFoldingControls: 'always' }} />
+          <Editor height="100%" language={language} value={code} onChange={(value) => handleCodeChange(value)} onMount={(editor) => { (editorRef as any).current = editor; }} theme="vs-dark" options={{ fontSize: 14, minimap: { enabled: false }, scrollBeyondLastLine: false, wordWrap: 'on', lineNumbers: 'on', roundedSelection: false, scrollbar: { vertical: 'visible', horizontal: 'visible' }, folding: true, foldingStrategy: 'indentation', showFoldingControls: 'always' }} />
         </div>
         <div className="p-3 bg-gray-800">
           <div className="flex items-center justify-between mb-2">
@@ -579,6 +665,24 @@ const TaskSubmissionEditor = ({ task, language, onSubmit, courseName }: TaskSubm
             </div>
           )}
         </div>
+        {lastSubmittedCode && (
+          <div className="p-3 bg-gray-800 border-t border-gray-700">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm text-gray-300">Last submitted code</span>
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-xs bg-gray-700 border-gray-600 text-gray-300 hover:bg-gray-600"
+                onClick={() => setCode(lastSubmittedCode!)}
+              >
+                Load into editor
+              </Button>
+            </div>
+            <div className="bg-black rounded p-3 font-mono text-xs text-blue-400 max-h-48 overflow-auto border border-gray-600">
+              <pre className="whitespace-pre-wrap">{lastSubmittedCode}</pre>
+            </div>
+          </div>
+        )}
         {lastSubmissionResult !== null && !showPersistentError && (<div className={`p-3 border-t ${lastSubmissionResult ? 'bg-green-900 border-green-700 text-green-100' : 'bg-red-900 border-red-700 text-red-100'}`}><div className="flex items-center gap-2">{lastSubmissionResult ? <CheckCircle className="w-4 h-4" /> : <XCircle className="w-4 h-4" />}<span className="text-sm font-medium">{lastSubmissionResult ? 'Correct! Your solution passed all tests.' : 'Your solution needs some work. Check the expected output and try again.'}</span></div></div>)}
       </div>
       <Dialog open={showInputDialog} onOpenChange={setShowInputDialog}><DialogContent className="sm:max-w-md"><DialogHeader><DialogTitle>Input Required</DialogTitle><DialogDescription>Your code is asking for input{pendingInputVariable && ` for variable "${pendingInputVariable}"`}. Please enter a value below.</DialogDescription></DialogHeader><div className="space-y-4"><div><label className="text-sm font-medium text-gray-700 mb-2 block">{inputPrompt}</label><Input value={inputValue} onChange={(e) => setInputValue(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') handleInputSubmit(); }} placeholder="Enter your input..." autoFocus /></div><div className="flex justify-end space-x-2"><Button variant="outline" onClick={() => setShowInputDialog(false)}>Cancel</Button><Button onClick={handleInputSubmit}>Submit</Button></div></div></DialogContent></Dialog>

@@ -146,6 +146,33 @@ export type Database = {
         }
         Relationships: []
       }
+      task_drafts: {
+        Row: {
+          created_at: string
+          draft_code: string
+          id: string
+          last_saved_at: string
+          task_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          draft_code?: string
+          id?: string
+          last_saved_at?: string
+          task_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          draft_code?: string
+          id?: string
+          last_saved_at?: string
+          task_id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       task_submissions: {
         Row: {
           attempt_number: number | null
