@@ -42,9 +42,16 @@ const StudentDashboard = () => {
   const [userAchievements, setUserAchievements] = useState<Achievement[]>([]);
   const [progress, setProgress] = useState<UserProgress | null>(null);
   const [courses, setCourses] = useState<Course[]>([]);
-  const [loading, setLoading] = useState(true);
+const [loading, setLoading] = useState(true);
 
+const RedirectToTeacher: React.FC = () => {
   useEffect(() => {
+    window.location.href = '/teacher/dashboard';
+  }, []);
+  return null;
+};
+
+useEffect(() => {
     if (user) {
       fetchData();
     }
@@ -175,7 +182,7 @@ const StudentDashboard = () => {
   const completionRate = progress ? (progress.completion_percentage || 0) : 0;
 
   return (
-    <RoleGuard allowedRoles={['student']}>
+    <RoleGuard allowedRoles={['student']} fallback={<RedirectToTeacher />}>
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
         {/* Header */}
         <header className="w-full bg-white shadow-lg border-b border-blue-100">
