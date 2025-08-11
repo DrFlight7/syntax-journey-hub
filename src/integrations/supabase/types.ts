@@ -80,6 +80,231 @@ export type Database = {
         }
         Relationships: []
       }
+      exam_assignments: {
+        Row: {
+          assigned_at: string
+          exam_id: string
+          expires_at: string | null
+          id: string
+          started_at: string | null
+          status: string
+          student_id: string
+        }
+        Insert: {
+          assigned_at?: string
+          exam_id: string
+          expires_at?: string | null
+          id?: string
+          started_at?: string | null
+          status?: string
+          student_id: string
+        }
+        Update: {
+          assigned_at?: string
+          exam_id?: string
+          expires_at?: string | null
+          id?: string
+          started_at?: string | null
+          status?: string
+          student_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_exam_assignments_exam"
+            columns: ["exam_id"]
+            isOneToOne: false
+            referencedRelation: "exams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      exam_drafts: {
+        Row: {
+          created_at: string
+          draft_code: string
+          exam_task_id: string
+          id: string
+          last_saved_at: string
+          student_id: string
+        }
+        Insert: {
+          created_at?: string
+          draft_code?: string
+          exam_task_id: string
+          id?: string
+          last_saved_at?: string
+          student_id: string
+        }
+        Update: {
+          created_at?: string
+          draft_code?: string
+          exam_task_id?: string
+          id?: string
+          last_saved_at?: string
+          student_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_exam_draft_task"
+            columns: ["exam_task_id"]
+            isOneToOne: false
+            referencedRelation: "exam_tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      exam_submissions: {
+        Row: {
+          attempt_number: number
+          exam_id: string
+          exam_task_id: string
+          execution_output: string | null
+          feedback: string | null
+          grade: number | null
+          id: string
+          is_correct: boolean
+          student_id: string
+          submitted_at: string
+          submitted_code: string
+          validation_results: Json
+        }
+        Insert: {
+          attempt_number?: number
+          exam_id: string
+          exam_task_id: string
+          execution_output?: string | null
+          feedback?: string | null
+          grade?: number | null
+          id?: string
+          is_correct?: boolean
+          student_id: string
+          submitted_at?: string
+          submitted_code: string
+          validation_results?: Json
+        }
+        Update: {
+          attempt_number?: number
+          exam_id?: string
+          exam_task_id?: string
+          execution_output?: string | null
+          feedback?: string | null
+          grade?: number | null
+          id?: string
+          is_correct?: boolean
+          student_id?: string
+          submitted_at?: string
+          submitted_code?: string
+          validation_results?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_exam_submissions_exam"
+            columns: ["exam_id"]
+            isOneToOne: false
+            referencedRelation: "exams"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_exam_submissions_task"
+            columns: ["exam_task_id"]
+            isOneToOne: false
+            referencedRelation: "exam_tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      exam_tasks: {
+        Row: {
+          created_at: string
+          description: string
+          exam_id: string
+          expected_output: string | null
+          id: string
+          initial_code: string
+          instructions: string
+          order_index: number
+          test_cases: Json
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description: string
+          exam_id: string
+          expected_output?: string | null
+          id?: string
+          initial_code: string
+          instructions: string
+          order_index: number
+          test_cases?: Json
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string
+          exam_id?: string
+          expected_output?: string | null
+          id?: string
+          initial_code?: string
+          instructions?: string
+          order_index?: number
+          test_cases?: Json
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_exam_tasks_exam"
+            columns: ["exam_id"]
+            isOneToOne: false
+            referencedRelation: "exams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      exams: {
+        Row: {
+          created_at: string
+          created_by: string
+          description: string | null
+          duration_minutes: number
+          ends_at: string | null
+          id: string
+          instructions: string | null
+          is_published: boolean
+          starts_at: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          description?: string | null
+          duration_minutes?: number
+          ends_at?: string | null
+          id?: string
+          instructions?: string | null
+          is_published?: boolean
+          starts_at?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          duration_minutes?: number
+          ends_at?: string | null
+          id?: string
+          instructions?: string | null
+          is_published?: boolean
+          starts_at?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
