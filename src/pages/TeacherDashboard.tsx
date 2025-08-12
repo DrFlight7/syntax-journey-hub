@@ -255,14 +255,19 @@ const TeacherDashboard = () => {
 
     setIsSubmitting(true);
     try {
+      const sanitizedData = {
+        ...data,
+        starts_at: data.starts_at ? new Date(data.starts_at).toISOString() : null,
+        ends_at: data.ends_at ? new Date(data.ends_at).toISOString() : null,
+      };
       if (editingExam) {
         // Update existing exam
         const { error } = await supabase
           .from('exams')
-          .update({
-            ...data,
-            updated_at: new Date().toISOString(),
-          })
+            .update({
+              ...sanitizedData,
+              updated_at: new Date().toISOString(),
+            })
           .eq('id', editingExam.id);
 
         if (error) throw error;
@@ -283,10 +288,10 @@ const TeacherDashboard = () => {
         // Create new exam
         const { data: newExam, error } = await supabase
           .from('exams')
-          .insert({
-            ...data,
-            created_by: user.id,
-          })
+            .insert({
+              ...sanitizedData,
+              created_by: user.id,
+            })
           .select()
           .single();
 
